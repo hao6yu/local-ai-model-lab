@@ -24,6 +24,56 @@ The GX10 should continue loading only one large model at a time. An A/B comparis
 4. [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
 5. [Evaluation suite](docs/EVALUATION_SUITE.md)
 
+## Development commands
+
+Prerequisites: Python 3.12+ (a `python3` ≥ 3.12 on the PATH) and Node 18+ (Node 20/22 recommended).
+
+### Backend (FastAPI, port 8000)
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Both backend endpoints are `GET /api/health` and `GET /api/runtime`.
+
+Configuration comes from environment variables (optionally a git-ignored
+`backend/.env`). See `backend/.env.example`.
+
+### Frontend (Vite dev server, port 5173, proxies `/api` to port 8000)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Tests and checks
+
+```bash
+# Backend: unit tests, lint, formatting, and static type check
+cd backend
+python -m pytest
+ruff check .
+ruff format --check .
+mypy
+
+# Frontend: unit tests, type check, lint
+cd frontend
+npm test
+npm run typecheck
+npm run lint
+
+# Frontend production build (type check + bundle)
+npm run build
+```
+
+The backend uvicorn dev server and the Vite dev server both bind to
+`127.0.0.1` by default.
+
 ## Recommended first prompt for Qwen/OpenCode
 
 ```text
@@ -35,5 +85,9 @@ the files changed, commands run, test results, and any unresolved decisions.
 
 ## Status
 
-Planning complete; implementation has not started.
+Milestone 1 (project shell and health page) is implemented: backend and
+frontend skeletons, environment-based configuration, `GET /api/health` and
+`GET /api/runtime`, and a health page showing portal and upstream state plus
+the configured model metadata. Chat, persistence, evaluation suites, and
+deployment are still to come (Milestones 2–6).
 

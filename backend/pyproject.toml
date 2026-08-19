@@ -1,0 +1,14 @@
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["app", "tests", "conftest.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "W"]
