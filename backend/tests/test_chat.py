@@ -270,17 +270,17 @@ def test_stream_chat_closes_upstream_when_consumer_stops() -> None:
 
 
 def test_generation_tps_suppressed_when_reasoning_active() -> None:
-    from app.api.routes import _build_metrics
+    from app.core.metrics import build_chat_metrics
 
     usage = ProviderUsage(prompt_tokens=4, completion_tokens=12)
     # started=0.0, completed=3.0, first_chunk_at=1.0 -> span = 2.0 -> tps = 6.0.
-    off = _build_metrics(0.0, 3.0, 1.0, usage, reasoning_active=False)
+    off = build_chat_metrics(0.0, 3.0, 1.0, usage, reasoning_active=False)
     assert off.generation_tps == 6.0
 
-    on = _build_metrics(0.0, 3.0, 1.0, usage, reasoning_active=True)
+    on = build_chat_metrics(0.0, 3.0, 1.0, usage, reasoning_active=True)
     assert on.generation_tps is None
 
-    no_first_chunk = _build_metrics(0.0, 3.0, None, usage, reasoning_active=False)
+    no_first_chunk = build_chat_metrics(0.0, 3.0, None, usage, reasoning_active=False)
     assert no_first_chunk.generation_tps is None
 
 

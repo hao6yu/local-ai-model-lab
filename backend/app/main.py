@@ -2,10 +2,13 @@ import asyncio
 
 import httpx
 from fastapi import FastAPI
+from sqlalchemy import create_engine
 
+from app.api import evaluations
 from app.api.routes import router
 from app.core.config import Settings, load_settings
 from app.core.health import Probe, probe_upstream
+from app.db.session import init_schema
 
 
 def create_app(
@@ -18,7 +21,13 @@ def create_app(
     app.state.probe_upstream = probe if probe is not None else probe_upstream
     app.state.upstream_transport = upstream_transport
     app.state.generation_lock = asyncio.Lock()
+    app.state.run_lock = asyncio.Lock()
+    if app.state.settings.database_url is not None:
+        engine = create_engine(app.state.settings.database_url)
+        app.state.engine = engine
+        init_schema(engine)
     app.include_router(router)
+    app.include_router(evaluations.router)
     return app
 
 

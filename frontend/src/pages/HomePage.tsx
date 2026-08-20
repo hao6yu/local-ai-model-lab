@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getHealth, getRuntime } from "../api/client";
 import { ExperimentalBadge } from "../components/ExperimentalBadge";
 import { ChatPlayground } from "../features/chat/ChatPlayground";
+import { EvaluationDashboard } from "../features/evaluations/EvaluationDashboard";
 import type { HealthResponse, RuntimeResponse } from "../types/health";
 
 type LoadState =
@@ -112,6 +113,7 @@ export function HomePage() {
         models={runtime.models}
         defaultModelProfile={runtime.default_model_profile}
       />
+      <EvaluationDashboard />
     </main>
   );
 }

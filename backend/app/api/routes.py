@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.core import metrics as metrics_service
 from app.core import runtime as runtime_service
 from app.core.config import Settings
 from app.core.health import Probe
@@ -16,12 +17,11 @@ from app.core.model_profiles import (
     select_model_profile,
     settings_for_profile,
 )
-from app.model_provider import ProviderChunk, ProviderResult, ProviderUsage, openai_compatible
+from app.model_provider import ProviderChunk, ProviderResult, openai_compatible
 from app.schemas.chat import (
     ChatChunkPayload,
     ChatDonePayload,
     ChatErrorPayload,
-    ChatMetrics,
     ChatStreamRequest,
     ChatUsage,
 )
@@ -31,7 +31,6 @@ from app.schemas.runtime import RuntimeResponse
 router = APIRouter(prefix="/api")
 
 STREAM_MEDIA_TYPE = "text/event-stream"
-SECONDS_PRECISION = 3
 
 
 def _sse_event(event: str, payload: BaseModel) -> str:
@@ -119,7 +118,7 @@ async def _chat_stream_events(
                 prompt_tokens=result.usage.prompt_tokens,
                 completion_tokens=result.usage.completion_tokens,
             )
-        metrics = _build_metrics(
+        metrics = metrics_service.build_chat_metrics(
             started,
             completed,
             first_chunk_at,
@@ -134,45 +133,3 @@ async def _chat_stream_events(
                 metrics=metrics,
             ),
         )
-
-
-def _build_metrics(
-    started: float,
-    completed: float,
-    first_chunk_at: float | None,
-    usage: ProviderUsage | None,
-    *,
-    reasoning_active: bool,
-) -> ChatMetrics:
-    # When reasoning is active, the server-reported completion_tokens include
-    # hidden reasoning tokens that are not part of the visible-token interval,
-    # so a tokens/second figure would overstate generation speed. Report null.
-    ttft = first_chunk_at - started if first_chunk_at is not None else None
-    total = completed - started
-    generation_tps = None if reasoning_active else _generation_tps(usage, ttft, total)
-    return ChatMetrics(
-        ttft_seconds=None if ttft is None else round(ttft, SECONDS_PRECISION),
-        completion_seconds=round(total, SECONDS_PRECISION),
-        generation_tps=generation_tps,
-        token_source="upstream"
-        if usage is not None and usage.completion_tokens is not None and usage.completion_tokens > 0
-        else None,
-    )
-
-
-def _generation_tps(
-    usage: ProviderUsage | None,
-    ttft: float | None,
-    total: float,
-) -> float | None:
-    if (
-        usage is None
-        or usage.completion_tokens is None
-        or usage.completion_tokens <= 0
-        or ttft is None
-    ):
-        return None
-    span = total - ttft
-    if span <= 0:
-        return None
-    return round(usage.completion_tokens / span, 1)

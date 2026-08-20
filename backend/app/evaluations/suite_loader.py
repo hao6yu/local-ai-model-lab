@@ -1,0 +1,127 @@
+import hashlib
+import json
+import logging
+import os
+
+from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
+
+HASH_ALGORITHM = "sha256"
+
+
+class _CaseModel(BaseModel):
+    id: str = Field(min_length=1, max_length=200)
+    category: str | None = None
+    prompt: str = Field(min_length=1)
+    expected_properties: list[str] = Field(default_factory=list)
+    disabled: bool = False
+
+    @field_validator("id")
+    @classmethod
+    def _validate_id(cls, value: str) -> str:
+        if not value.replace("-", "").replace(".", "").replace("_", "").isalnum():
+            raise ValueError("case id must be alphanumeric")
+        return value
+
+
+class _SuiteDocument(BaseModel):
+    version: int = Field(ge=1)
+    cases: list[_CaseModel] = Field(min_length=1)
+
+
+class LoadedCase:
+    def __init__(
+        self,
+        id: str,
+        category: str | None,
+        prompt: str,
+        expected_properties: list[str],
+        disabled: bool,
+    ) -> None:
+        self.id = id
+        self.category = category
+        self.prompt = prompt
+        self.expected_properties = expected_properties
+        self.disabled = disabled
+
+    @property
+    def key(self) -> str:
+        return self.id
+
+
+class LoadedSuite:
+    def __init__(
+        self,
+        name: str,
+        version: str,
+        hash: str,
+        source_path: str,
+        cases: list[LoadedCase],
+    ) -> None:
+        self.name = name
+        self.version = version
+        self.hash = hash
+        self.source_path = source_path
+        self.cases = cases
+
+    def enabled_cases(self) -> list[LoadedCase]:
+        return [case for case in self.cases if not case.disabled]
+
+    def all_cases(self) -> list[LoadedCase]:
+        return list(self.cases)
+
+    @property
+    def case_count(self) -> int:
+        return len(self.cases)
+
+
+class SuiteNotFoundError(Exception):
+    pass
+
+
+class SuiteValidationError(Exception):
+    pass
+
+
+def hash_bytes(raw: bytes) -> str:
+    digest = hashlib.new(HASH_ALGORITHM)
+    digest.update(raw)
+    return digest.hexdigest()
+
+
+def _suite_path(suites_dir: str, name: str) -> str:
+    return os.path.join(suites_dir, f"{name}.json")
+
+
+def load_suite(name: str, suites_dir: str) -> LoadedSuite:
+    path = _suite_path(suites_dir, name)
+    if not os.path.exists(path):
+        raise SuiteNotFoundError(name)
+    with open(path, "rb") as handle:
+        raw = handle.read()
+    return _parse(name, path, raw)
+
+
+def _parse(name: str, path: str, raw: bytes) -> LoadedSuite:
+    try:
+        document = _SuiteDocument.model_validate(json.loads(raw.decode("utf-8")))
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise SuiteValidationError(name) from exc
+    cases = [
+        LoadedCase(
+            id=case.id,
+            category=case.category,
+            prompt=case.prompt,
+            expected_properties=case.expected_properties,
+            disabled=case.disabled,
+        )
+        for case in document.cases
+    ]
+    return LoadedSuite(
+        name=name,
+        version=str(document.version),
+        hash=hash_bytes(raw),
+        source_path=path,
+        cases=cases,
+    )

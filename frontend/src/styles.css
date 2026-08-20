@@ -254,3 +254,203 @@ dd {
   background: #2d3443;
   color: #e8ecf3;
 }
+
+.eval {
+  margin-top: 2rem;
+  border: 1px solid #2d3443;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #171b24;
+}
+
+.eval-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.eval-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.eval-controls span {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #a9b2c4;
+}
+
+.eval-controls select,
+.eval-controls input {
+  width: 100%;
+  padding: 0.4rem;
+  background: #10131a;
+  color: #e8ecf3;
+  border: 1px solid #2d3443;
+  border-radius: 0.4rem;
+}
+
+.eval-progress {
+  margin: 0.75rem 0;
+  color: #a9b2c4;
+}
+
+.eval-runs {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.state {
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.state-created {
+  color: #ffd54d;
+}
+
+.state-running {
+  color: #7fb3ff;
+}
+
+.state-completed {
+  color: #7bd88f;
+}
+
+.state-failed {
+  color: #f0a6a6;
+}
+
+.eval-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.eval-score-button {
+  padding: 0.4rem 0.8rem;
+  background: #264a38;
+  color: #9aefb4;
+  border: 1px solid #2d3443;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.eval-score-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.eval-cancel-button,
+.eval-edit-button {
+  background: #2d3443;
+  color: #e8ecf3;
+}
+
+.eval-score-form {
+  margin-top: 0.75rem;
+  border-top: 1px solid #2d3443;
+  padding-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+}
+
+.eval-score-form span {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #a9b2c4;
+}
+
+.eval-score-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.eval-score-form select,
+.eval-score-form input,
+.eval-note-input {
+  width: 100%;
+  padding: 0.4rem;
+  background: #10131a;
+  color: #e8ecf3;
+  border: 1px solid #2d3443;
+  border-radius: 0.4rem;
+}
+
+.eval-checkbox-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  grid-template-columns: none;
+}
+
+.eval-checkbox-row label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  text-transform: none;
+  font-size: 0.9rem;
+}
+
+.eval-checkbox-row label span {
+  text-transform: none;
+}
+
+.eval-result-card {
+  margin-top: 1rem;
+  border: 1px solid #2d3443;
+  border-radius: 0.6rem;
+  padding: 0.85rem;
+  background: #10131a;
+}
+
+.eval-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+}
+
+.eval-result-prompt {
+  margin: 0.4rem 0;
+  color: #e8ecf3;
+}
+
+.eval-result-error {
+  margin: 0.4rem 0;
+  color: #f0a6a6;
+}
+
+.eval-result-response {
+  margin: 0.4rem 0;
+  white-space: pre-wrap;
+  color: #cdd5e6;
+}
+
+.eval-metrics {
+  margin: 0.4rem 0 0;
+  color: #a9b2c4;
+  font-size: 0.85rem;
+}
+
+.eval-score-summary {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #cdd5e6;
+}
