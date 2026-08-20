@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HealthResponse, RuntimeResponse } from "../../types/health";
 import { EvaluationDashboard } from "./EvaluationDashboard";
-import type { EvalResult } from "../../types/evaluations";
+import type { EvalResult, EvalRunBrief } from "../../types/evaluations";
 
 const health: HealthResponse = {
   portal: "ok",
@@ -73,9 +73,12 @@ interface MockConfig {
   runId?: number;
   blockSuites?: boolean;
   score?: EvalResult["scores"];
+  runtimeOverride?: RuntimeResponse;
+  savedRuns?: EvalRunBrief[];
+  detailOverride?: Record<string, unknown>;
 }
 
-function runDetail(runId: number): unknown {
+function runDetail(runId: number, overrides: Record<string, unknown> = {}): unknown {
   return {
     id: runId,
     suite_name: "uncensored-behavior",
@@ -95,6 +98,7 @@ function runDetail(runId: number): unknown {
     context_window: null,
     notes: null,
     results,
+    ...overrides,
   };
 }
 
@@ -121,18 +125,21 @@ function mockApis(config: MockConfig) {
       return json(health);
     }
     if (path.endsWith("/api/runtime")) {
-      return json(runtime);
+      return json(config.runtimeOverride ?? runtime);
     }
     if (path.endsWith("/api/suites")) {
       return json(suites);
     }
     if (path.endsWith("/api/evaluation-runs") && method === "POST") {
-      return new Response(JSON.stringify({ run_id: runId }), {
+      return new Response(JSON.stringify({ id: runId }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       });
     }
-    if (path.endsWith("/api/evaluation-runs/start")) {
+    if (path.endsWith("/api/evaluation-runs") && method === "GET") {
+      return json(config.savedRuns ?? []);
+    }
+    if (path.endsWith("/start")) {
       if (config.conflictStatus) {
         return new Response(JSON.stringify({ detail: "Another evaluation run is already active." }), {
           status: config.conflictStatus,
@@ -145,7 +152,7 @@ function mockApis(config: MockConfig) {
       });
     }
     if (path.startsWith("/api/evaluation-runs/")) {
-      return json(runDetail(runId));
+      return json(runDetail(runId, config.detailOverride ?? {}));
     }
     if (path.startsWith("/api/results/")) {
       if (config.score) {
@@ -251,7 +258,7 @@ describe("EvaluationDashboard", () => {
         hallucination: false,
         truncation: false,
         unsafe_output: false,
-        failed: false,
+        format_failure: false,
         note: "Clear refusal",
       },
     });
@@ -288,7 +295,92 @@ describe("EvaluationDashboard", () => {
 
     await screen.findByTestId("eval-error-banner");
 
-    expect(recorded.some((r) => r.method === "POST" && r.path.endsWith("/api/evaluation-runs/start"))).toBe(true);
+    expect(recorded.some((r) => r.method === "POST" && r.path.endsWith("/start"))).toBe(true);
     expect(await screen.findByTestId("eval-error-banner")).toHaveTextContent("Another evaluation run is already active");
+  });
+
+  it("sends the resolved profile label, model id, and context window when models are configured", async () => {
+    const { recorded } = mockApis({
+      streamBody: "",
+      runtimeOverride: {
+        model_id: "ornith-1.5-35b-a3b",
+        profile_label: "Ornith 1.5 35B-A3B NVFP4",
+        context_window: 131072,
+        experimental: false,
+        default_reasoning_effort: "low",
+        default_max_tokens: 16384,
+        default_model_profile: "ornith",
+        models: [
+          {
+            key: "ornith",
+            model_id: "ornith-1.5-35b-a3b",
+            profile_label: "Ornith 1.5 35B-A3B NVFP4",
+            context_window: 131072,
+            experimental: false,
+            default_reasoning_effort: "low",
+            default_max_tokens: 16384,
+          },
+          {
+            key: "qwen",
+            model_id: "qwen3.8-27b",
+            profile_label: "Qwen3.8-27B NVFP4 + optimized DSpark",
+            context_window: 131072,
+            experimental: false,
+            default_reasoning_effort: "low",
+            default_max_tokens: 16384,
+          },
+        ],
+      },
+    });
+    render(<EvaluationDashboard />);
+
+    await screen.findByTestId("profile-selector");
+    fireEvent.change(screen.getByTestId("suite-selector"), {
+      target: { value: "uncensored-behavior" },
+    });
+    fireEvent.click(screen.getByTestId("start-evaluation-button"));
+
+    const posted = recorded.find(
+      (entry) => entry.method === "POST" && entry.path === "/api/evaluation-runs",
+    );
+    const body = JSON.parse(posted?.body ?? "{}");
+    expect(body.profile_label).toBe("Ornith 1.5 35B-A3B NVFP4");
+    expect(body.model_id).toBe("ornith-1.5-35b-a3b");
+    expect(body.context_window).toBe(131072);
+  });
+
+  it("loads a saved run's profile, settings, and results on click", async () => {
+    const savedRun: EvalRunBrief = {
+      id: 7,
+      suite_name: "uncensored-behavior",
+      suite_version: "1",
+      state: "completed",
+      created_at: "2026-01-01T00:00:00Z",
+      completed_at: "2026-01-01T00:00:01Z",
+      completed_cases: 2,
+      total_cases: 2,
+    };
+    mockApis({
+      streamBody: "",
+      savedRuns: [savedRun],
+      detailOverride: {
+        profile_label: "Durable View Profile",
+        model_id: "ornith-1.5-35b-a3b",
+        context_window: 131072,
+        notes: "Review this run",
+      },
+    });
+    render(<EvaluationDashboard />);
+
+    fireEvent.click(screen.getByTestId("saved-runs-button"));
+    expect(await screen.findByTestId("saved-run-7")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("saved-run-7"));
+
+    expect(await screen.findByTestId("eval-run-detail")).toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-detail")).toHaveTextContent("Durable View Profile");
+    expect(screen.getByTestId("eval-run-detail")).toHaveTextContent("Review this run");
+    expect(await screen.findByTestId("eval-results")).toBeInTheDocument();
+    expect(screen.getAllByTestId("eval-result")).toHaveLength(2);
   });
 });

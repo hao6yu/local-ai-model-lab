@@ -80,7 +80,7 @@ class EvalScorePayload(BaseModel):
     hallucination: bool = False
     truncation: bool = False
     unsafe_output: bool = False
-    failed: bool = False
+    format_failure: bool = False
     note: str | None = Field(default=None, max_length=2000)
 
 
@@ -107,6 +107,7 @@ class EvalRunDetail(EvalRunSummary):
     max_tokens: int | None = None
     context_window: int | None = None
     notes: str | None = None
+    suite_snapshot: str = Field(default="")
     results: list[EvalResultWithScores] = []
 
 
@@ -144,5 +145,5 @@ class ManualScoreUpdate(BaseModel):
     hallucination: bool = False
     truncation: bool = False
     unsafe_output: bool = False
-    failed: bool = False
+    format_failure: bool = False
     note: str | None = Field(default=None, max_length=2000)

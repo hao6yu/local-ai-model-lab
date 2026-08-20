@@ -152,7 +152,7 @@ def test_start_missing_run_404(tmp_path: Path) -> None:
 def test_persistence_required_returns_503_without_engine() -> None:
     from app.main import create_app as _create_app
 
-    settings = make_settings(evaluations_dir="data/suites")
+    settings = make_settings(evaluations_dir="data/suites", database_url="")
     client = TestClient(_create_app(settings=settings, upstream_transport=None))
 
     response = client.post(

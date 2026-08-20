@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from "react";
+import { getRuntime } from "../../api/client";
 import {
   createEvaluationRun,
   evaluateSuite,
   getEvaluationRun,
   getSuites,
+  listSavedRuns,
   updateResultScore,
 } from "../../api/evaluations";
 import type {
   EvaluationRunRequest,
   EvalResult,
+  EvalRun,
+  EvalRunBrief,
   EvalScore,
   EvalState,
   SuiteListItem,
 } from "../../types/evaluations";
 import { EMPTY_SCORE } from "../../types/evaluations";
+import type { RuntimeResponse } from "../../types/health";
 import { ReasoningEffort } from "../../types/chat";
 
 const REASONING_OPTIONS: ReasoningEffort[] = ["off", "low", "medium", "high", "xhigh"];
@@ -30,8 +35,14 @@ const BOOLEAN_FIELDS: (keyof EvalScore)[] = [
   "hallucination",
   "truncation",
   "unsafe_output",
-  "failed",
+  "format_failure",
 ];
+
+function parseNumber(value: string): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 type SuitesLoadState =
   | { kind: "loading" }
@@ -61,13 +72,21 @@ function formatMetrics(result: EvalResult): string {
 
 export function EvaluationDashboard() {
   const [suitesState, setSuitesState] = useState<SuitesLoadState>({ kind: "loading" });
+  const [runtime, setRuntime] = useState<RuntimeResponse | null>(null);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [useProfileSelect, setUseProfileSelect] = useState(false);
+  const [profileValue, setProfileValue] = useState("assistant");
+  const [temperature, setTemperature] = useState("");
+  const [maxTokens, setMaxTokens] = useState("");
+  const [savedRuns, setSavedRuns] = useState<EvalRunBrief[]>([]);
+  const [savedRunsVisible, setSavedRunsVisible] = useState(false);
   const [selectedSuite, setSelectedSuite] = useState<string | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("off");
-  const [profileLabel, setProfileLabel] = useState("assistant");
   const [notes, setNotes] = useState("");
 
   const [runId, setRunId] = useState<number | null>(null);
   const [state, setState] = useState<EvalState>("created");
+  const [viewedRun, setViewedRun] = useState<EvalRun | null>(null);
   const [results, setResults] = useState<EvalResult[]>([]);
   const [progress, setProgress] = useState<{ case_index: number; total: number; status: EvalState } | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -78,8 +97,30 @@ export function EvaluationDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getSuites(), Promise.resolve<void>(undefined)])
-      .then(([suites]) => {
+
+    getRuntime()
+      .then((runtime) => {
+        if (!cancelled) {
+          setRuntime(runtime);
+          const models = runtime.models ?? [];
+          setUseProfileSelect(models.length > 1);
+          if (models.length > 1) {
+            const match = models.find((model) => model.model_id === runtime.model_id) ?? models[0];
+            setProfileValue(match.model_id ?? match.key ?? "assistant");
+          } else {
+            setProfileValue(runtime.profile_label ?? (models[0]?.profile_label ?? "assistant"));
+          }
+          setMaxTokens(runtime.default_max_tokens != null ? String(runtime.default_max_tokens) : "");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeError("The runtime information could not be loaded.");
+        }
+      });
+
+    getSuites()
+      .then((suites) => {
         if (!cancelled) {
           setSuitesState({ kind: "ready", suites: Array.isArray(suites) ? suites : [] });
         }
@@ -89,10 +130,26 @@ export function EvaluationDashboard() {
           setSuitesState({ kind: "error", message: error instanceof Error ? error.message : "Unknown error" });
         }
       });
+
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!savedRunsVisible) return;
+    let cancelled = false;
+    listSavedRuns()
+      .then((runs) => {
+        if (!cancelled) setSavedRuns(Array.isArray(runs) ? runs : []);
+      })
+      .catch(() => {
+        if (!cancelled) setSavedRuns([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedRunsVisible]);
 
   const resetRun = () => {
     abortRef.current?.abort();
@@ -104,6 +161,22 @@ export function EvaluationDashboard() {
     setRunError(null);
     setScored({});
     setEditingId(null);
+    setViewedRun(null);
+  };
+
+  const handleLoadRun = (run: EvalRunBrief) => {
+    resetRun();
+    setSavedRunsVisible(false);
+    getEvaluationRun(run.id)
+      .then((detail) => {
+        setViewedRun(detail);
+        setResults(detail.results ?? []);
+        setState(detail.state);
+      })
+      .catch(() => {
+        setRunError("This saved evaluation could not be loaded.");
+        setState("failed");
+      });
   };
 
   const selectedSuiteInfo =
@@ -111,18 +184,23 @@ export function EvaluationDashboard() {
       ? suitesState.suites.find((suite) => suite.name === selectedSuite)
       : null;
 
-  const buildRequest = (): EvaluationRunRequest => ({
-    suite_name: selectedSuiteInfo?.name ?? selectedSuite ?? "",
-    suite_version: selectedSuiteInfo?.version ?? "1",
-    reasoning_effort: reasoningEffort,
-    temperature: null,
-    max_tokens: null,
-    profile_label: profileLabel,
-    model_id: null,
-    context_window: null,
-    modality: "chat",
-    notes: notes || null,
-  });
+  const buildRequest = (): EvaluationRunRequest => {
+    const model = (runtime?.models ?? []).find(
+      (candidate) => candidate.model_id === profileValue || candidate.key === profileValue,
+    );
+    return {
+      suite_name: selectedSuiteInfo?.name ?? selectedSuite ?? "",
+      suite_version: selectedSuiteInfo?.version ?? "1",
+      reasoning_effort: reasoningEffort,
+      temperature: parseNumber(temperature) ?? null,
+      max_tokens: parseNumber(maxTokens) ?? runtime?.default_max_tokens ?? null,
+      profile_label: model?.profile_label ?? profileValue,
+      model_id: model?.model_id ?? null,
+      context_window: model?.context_window ?? runtime?.context_window ?? null,
+      modality: "text",
+      notes: notes || null,
+    };
+  };
 
   const startRun = () => {
     if (!selectedSuite || state === "running") {
@@ -135,16 +213,18 @@ export function EvaluationDashboard() {
     setRunError(null);
 
     let streamFailed = false;
+    let doneFailed = false;
     createEvaluationRun(request)
       .then((id) => {
         setRunId(id);
         setState("running");
-        return evaluateSuite(request, {
+        return evaluateSuite(id, {
           onProgress: setProgress,
           onResult: () => {},
-          onDone: () => {
+          onDone: (payload) => {
             abortRef.current = null;
-            setState("completed");
+            doneFailed = payload.state === "failed";
+            setState(payload.state === "failed" ? "failed" : "completed");
           },
           onError: (payload) => {
             abortRef.current = null;
@@ -159,17 +239,19 @@ export function EvaluationDashboard() {
             setRunError("The evaluation stream was interrupted before completing.");
           },
         }, controller.signal).then(() => {
-          return streamFailed ? Promise.resolve(null) : getEvaluationRun(id);
+          return getEvaluationRun(id);
+        }).then((run) => {
+          if (!run) return;
+          setResults(run.results ?? []);
+          if (!streamFailed && !doneFailed) {
+            setState("completed");
+          }
         });
-      })
-      .then((run) => {
-        if (run) {
-          setResults(run.results);
-          setState("completed");
-        }
       })
       .catch(() => {
         abortRef.current = null;
+        setRunError("The evaluation could not be started.");
+        setState("failed");
       });
   };
 
@@ -193,6 +275,12 @@ export function EvaluationDashboard() {
     <section className="eval" aria-label="Evaluation dashboard">
       <h2>Model evaluation suites</h2>
       <p className="detail">Run the default model on every case, review the outputs, and score each result from 0 to 2.</p>
+
+      {runtimeError ? (
+        <p className="detail" data-testid="runtime-warning">
+          Settings could not be pre-filled from the runtime: {runtimeError}
+        </p>
+      ) : null}
 
       <section className="eval-controls">
         <label>
@@ -232,14 +320,61 @@ export function EvaluationDashboard() {
           </select>
         </label>
 
+        {useProfileSelect ? (
+          <label>
+            <span>Profile</span>
+            <select
+              data-testid="profile-selector"
+              value={profileValue}
+              disabled={state === "running"}
+              onChange={(event) => setProfileValue(event.target.value)}
+            >
+              {(runtime?.models ?? []).map((model) => (
+                <option
+                  key={model.key}
+                  value={model.model_id ?? model.key}
+                  title={model.profile_label ?? model.model_id ?? model.key}
+                >
+                  {model.model_id ?? model.key}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label>
+            <span>Profile label</span>
+            <input
+              data-testid="profile-label-input"
+              value={profileValue}
+              placeholder="assistant"
+              disabled={state === "running"}
+              onChange={(event) => setProfileValue(event.target.value)}
+            />
+          </label>
+        )}
+
         <label>
-          <span>Profile label</span>
+          <span>Max tokens</span>
           <input
-            data-testid="profile-label-input"
-            value={profileLabel}
-            placeholder="assistant"
+            data-testid="max-tokens-input"
+            type="number"
+            value={maxTokens}
+            placeholder={runtime?.default_max_tokens != null ? String(runtime.default_max_tokens) : ""}
             disabled={state === "running"}
-            onChange={(event) => setProfileLabel(event.target.value)}
+            onChange={(event) => setMaxTokens(event.target.value)}
+          />
+        </label>
+
+        <label>
+          <span>Temperature</span>
+          <input
+            data-testid="temperature-input"
+            type="number"
+            step="0.1"
+            value={temperature}
+            placeholder="default"
+            disabled={state === "running"}
+            onChange={(event) => setTemperature(event.target.value)}
           />
         </label>
 
@@ -267,7 +402,7 @@ export function EvaluationDashboard() {
 
       {state === "running" && progress ? (
         <p className="eval-progress" data-testid="eval-progress">
-          Evaluating case {progress.case_index + 1} of {progress.total}…
+          Evaluating case {progress.case_index} of {progress.total}…
         </p>
       ) : null}
 
@@ -296,6 +431,93 @@ export function EvaluationDashboard() {
           <button type="button" data-testid="new-evaluation-button" onClick={resetRun}>
             New evaluation
           </button>
+        </section>
+      ) : null}
+
+      <section className="eval-saved-runs">
+        <button
+          type="button"
+          data-testid="saved-runs-button"
+          onClick={() => setSavedRunsVisible((visible) => !visible)}
+        >
+          {savedRunsVisible ? "Hide saved runs" : "Show saved runs"}
+        </button>
+        {savedRunsVisible ? (
+          savedRuns.length === 0 ? (
+            <p className="detail" data-testid="saved-runs-empty">No saved evaluations yet.</p>
+          ) : (
+            <ul data-testid="saved-runs-list">
+              {savedRuns.map((run) => (
+                <li
+                  key={run.id}
+                  className="saved-run-item"
+                  data-testid={`saved-run-${run.id}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleLoadRun(run)}
+                >
+                  <span className={`state state-${run.state}`}>{run.state}</span>
+                  <span>
+                    #{run.id} — {run.suite_name} · version {run.suite_version}
+                  </span>
+                  <span>
+                    {run.completed_cases} / {run.total_cases} · {new Date(run.created_at).toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+      </section>
+
+      {viewedRun ? (
+        <section className="eval-run-detail" data-testid="eval-run-detail">
+          <h3>
+            Loaded evaluation {viewedRun.id}
+            <button type="button" data-testid="close-loaded-run-button" onClick={resetRun}>
+              Close
+            </button>
+          </h3>
+          <div className="eval-run-snapshot">
+            <dl>
+              <div>
+                <dt>Suite</dt>
+                <dd>
+                  {viewedRun.suite_name} · version {viewedRun.suite_version}
+                </dd>
+              </div>
+              <div>
+                <dt>Profile label</dt>
+                <dd>{viewedRun.profile_label}</dd>
+              </div>
+              <div>
+                <dt>Model ID</dt>
+                <dd>{viewedRun.model_id ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Reasoning effort</dt>
+                <dd>{viewedRun.reasoning_effort}</dd>
+              </div>
+              <div>
+                <dt>Temperature</dt>
+                <dd>{viewedRun.temperature ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Max tokens</dt>
+                <dd>{viewedRun.max_tokens ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Context window</dt>
+                <dd>{viewedRun.context_window ?? "—"}</dd>
+              </div>
+              {viewedRun.notes ? (
+                <div>
+                  <dt>Notes</dt>
+                  <dd>{viewedRun.notes}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
         </section>
       ) : null}
 

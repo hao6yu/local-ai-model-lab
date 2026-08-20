@@ -107,7 +107,13 @@ def _collect(
 
 
 async def _run_case(fake: FakeUpstream, case: suite_loader.LoadedCase) -> EvalCaseOutcome:
-    return await runner.run_case(case, make_settings(), transport=fake.transport)
+    from app.schemas.chat import ChatMessage, ChatStreamRequest
+
+    request = ChatStreamRequest(
+        model_profile="default",
+        messages=[ChatMessage(role="user", content=case.prompt)],
+    )
+    return await runner.run_case(case, make_settings(), request, transport=fake.transport)
 
 
 def test_run_case_records_response_and_metrics() -> None:
@@ -346,5 +352,5 @@ def test_load_run_summary_counts_completed_cases(tmp_path: Path) -> None:
 def test_manual_score_update_defaults() -> None:
     update = ManualScoreUpdate()
     assert update.accuracy is None
-    assert update.failed is False
+    assert update.format_failure is False
     assert update.note is None

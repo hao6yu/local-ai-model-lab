@@ -80,7 +80,7 @@ describe("evaluateSuite", () => {
     );
 
     await evaluateSuite(
-      runRequest,
+      1,
       {
         onProgress: (payload) => progresses.push(payload.case_index),
         onResult: (payload) => results.push(payload.response ?? ""),
@@ -117,7 +117,7 @@ describe("evaluateSuite", () => {
     );
 
     await evaluateSuite(
-      runRequest,
+      1,
       {
         onProgress: () => {
           throw new Error("onProgress should not fire");
@@ -159,7 +159,7 @@ describe("evaluateSuite", () => {
     );
 
     const promise = evaluateSuite(
-      runRequest,
+      1,
       {
         onProgress: () => {
           throw new Error("onProgress should not fire");
@@ -187,22 +187,22 @@ describe("evaluateSuite", () => {
   });
 
   it("creates an evaluation run and returns its id", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify({ run_id: 42 }), {
-          status: 201,
-          headers: { "Content-Type": "application/json" },
-        }),
-      ),
-    );
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          new Response(JSON.stringify({ id: 42 }), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
 
     const id = await createEvaluationRun(runRequest);
     expect(id).toBe(42);
   });
 
   it("updates a result score", async () => {
-    const score: typeof EMPTY_SCORE = { ...EMPTY_SCORE, accuracy: 2, refusal: true, failed: true };
+    const score: typeof EMPTY_SCORE = { ...EMPTY_SCORE, accuracy: 2, refusal: true, format_failure: true };
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>

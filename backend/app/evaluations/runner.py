@@ -14,7 +14,7 @@ from app.model_provider.base import (
     ProviderError,
     ProviderResult,
 )
-from app.schemas.chat import ChatMessage, ChatStreamRequest
+from app.schemas.chat import ChatStreamRequest
 
 
 @dataclass
@@ -35,6 +35,7 @@ def _case_error(exc: Exception) -> EvalErrorPayload:
 async def run_case(
     case: suite_loader.LoadedCase,
     settings: Settings,
+    run_request: ChatStreamRequest,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
     request_started_epoch: float | None = None,
@@ -51,13 +52,7 @@ async def run_case(
     saw_result = False
     error: EvalErrorPayload | None = None
 
-    request = ChatStreamRequest(
-        model_profile=None,
-        messages=[ChatMessage(role="user", content=case.prompt)],
-        reasoning_effort="off",
-    )
-
-    async for event in openai_compatible.stream_chat(settings, request, transport=transport):
+    async for event in openai_compatible.stream_chat(settings, run_request, transport=transport):
         if isinstance(event, ProviderChunk):
             if not event.content:
                 continue
@@ -84,7 +79,7 @@ async def run_case(
         first_chunk_at,
         completed,
         usage,
-        reasoning_active=False,
+        reasoning_active=run_request.reasoning_effort != "off",
         request_started_epoch=started_epoch,
     )
     return EvalCaseOutcome(

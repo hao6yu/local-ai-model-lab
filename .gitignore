@@ -12,7 +12,7 @@ dist/
 coverage/
 *.sqlite
 *.sqlite3
-data/*.db
+**/data/*.db
 data/uploads/
 data/exports/
 

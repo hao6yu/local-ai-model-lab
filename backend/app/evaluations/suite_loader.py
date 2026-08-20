@@ -58,12 +58,14 @@ class LoadedSuite:
         hash: str,
         source_path: str,
         cases: list[LoadedCase],
+        raw: str,
     ) -> None:
         self.name = name
         self.version = version
         self.hash = hash
         self.source_path = source_path
         self.cases = cases
+        self.raw = raw
 
     def enabled_cases(self) -> list[LoadedCase]:
         return [case for case in self.cases if not case.disabled]
@@ -103,9 +105,20 @@ def load_suite(name: str, suites_dir: str) -> LoadedSuite:
     return _parse(name, path, raw)
 
 
+def parse_snapshot(name: str, raw: str) -> LoadedSuite:
+    """Build a LoadedSuite from a previously stored snapshot string.
+
+    The snapshot is an immutable copy of the suite file taken when the run was
+    created, so edits to the on-disk suite afterwards must not change what this
+    run executes. ``parse_snapshot`` never touches the filesystem.
+    """
+    return _parse(name, f"{name}.json", raw.encode("utf-8"))
+
+
 def _parse(name: str, path: str, raw: bytes) -> LoadedSuite:
+    document_text = raw.decode("utf-8")
     try:
-        document = _SuiteDocument.model_validate(json.loads(raw.decode("utf-8")))
+        document = _SuiteDocument.model_validate(json.loads(document_text))
     except (json.JSONDecodeError, ValueError) as exc:
         raise SuiteValidationError(name) from exc
     cases = [
@@ -124,4 +137,5 @@ def _parse(name: str, path: str, raw: bytes) -> LoadedSuite:
         hash=hash_bytes(raw),
         source_path=path,
         cases=cases,
+        raw=document_text,
     )

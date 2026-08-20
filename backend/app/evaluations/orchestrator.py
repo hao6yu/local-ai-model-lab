@@ -1,6 +1,7 @@
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import cast
 
 import httpx
 from fastapi import HTTPException, status
@@ -21,6 +22,7 @@ from app.evaluations.schemas import (
     EvalRunDonePayload,
     EvalRunSummary,
 )
+from app.schemas.chat import ChatMessage, ChatStreamRequest, ReasoningEffort
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +153,29 @@ def _outcome_payload(outcome: runner.EvalCaseOutcome) -> EvalResultPayload:
     )
 
 
+def load_run_suite(run: EvaluationRun, suites_dir: str) -> suite_loader.LoadedSuite:
+    """Load the suite that governs ``run``, preferring the stored snapshot.
+
+    A run executes the immutable snapshot saved when it was created, so editing
+    the suite on disk after the run does not change what it runs. Only a run
+    with no snapshot (legacy data) falls back to the on-disk file, and an edit
+    to that file still surfaces as a 409.
+    """
+    if run.suite_snapshot:
+        return suite_loader.parse_snapshot(run.suite_name, run.suite_snapshot)
+    return suite_loader.load_suite(run.suite_name, suites_dir)
+
+
+def build_run_request(run: EvaluationRun, case: suite_loader.LoadedCase) -> ChatStreamRequest:
+    return ChatStreamRequest(
+        model_profile=run.profile_key,
+        messages=[ChatMessage(role="user", content=case.prompt)],
+        temperature=run.temperature,
+        max_tokens=run.max_tokens,
+        reasoning_effort=cast(ReasoningEffort, run.reasoning_effort),
+    )
+
+
 def load_run_summary(run: EvaluationRun) -> EvalRunSummary:
     completed_cases = sum(1 for row in run.results if row.state == "completed")
     total_cases = len(run.results)
@@ -184,7 +209,7 @@ async def orchestrate_suite(
         suites_dir = load_settings().evaluations_dir
 
     try:
-        loaded = suite_loader.load_suite(run.suite_name, suites_dir)
+        loaded = load_run_suite(run, suites_dir)
     except suite_loader.SuiteNotFoundError:
         run.state = "failed"
         run.completed_at = _utcnow()
@@ -233,6 +258,7 @@ async def orchestrate_suite(
         outcome = await runner.run_case(
             case,
             settings_for_profile(settings, run.profile_key),
+            build_run_request(run, case),
             transport=transport,
         )
         result_row.response = outcome.response

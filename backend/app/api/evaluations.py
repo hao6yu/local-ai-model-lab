@@ -56,7 +56,7 @@ def _resolve_profile(settings: Settings, profile_label: str | None) -> ModelProf
     selected = select_model_profile(settings)
     if profile_label:
         for profile in profiles:
-            if profile.profile_label == profile_label:
+            if profile.profile_label == profile_label or profile.model_id == profile_label:
                 return profile
         raise ModelProfileError(f"unknown model profile: {profile_label}")
     return selected
@@ -98,7 +98,7 @@ def _score_payload(score: ManualScore | None) -> EvalScorePayload | None:
         hallucination=score.hallucination,
         truncation=score.truncation,
         unsafe_output=score.unsafe_output,
-        failed=score.failed,
+        format_failure=score.format_failure,
         note=score.note,
     )
 
@@ -128,6 +128,7 @@ def _run_detail(run: EvaluationRun) -> EvalRunDetail:
         suite_hash=summary.suite_hash,
         profile_label=summary.profile_label,
         model_id=summary.model_id,
+        suite_snapshot=run.suite_snapshot,
         modality=summary.modality,
         state=summary.state,
         created_at=summary.created_at,
@@ -194,6 +195,7 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
             temperature=payload.temperature,
             max_tokens=payload.max_tokens,
             modality=payload.modality,
+            suite_snapshot=loaded.raw,
             notes=payload.notes,
             state="created",
         )
@@ -212,11 +214,19 @@ async def start_evaluation_run(request: Request, run_id: int) -> StreamingRespon
             detail="Evaluation persistence is not configured for this server.",
         )
     transport: httpx.AsyncBaseTransport | None = request.app.state.upstream_transport
-    run_lock: asyncio.Lock = request.app.state.run_lock
+    generation_lock: asyncio.Lock = request.app.state.generation_lock
     with session_scope(engine) as session:
         run = _get_run(session, run_id)
+        if run.state != "created":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Evaluation run {run_id} is in state '{run.state}'. "
+                    f"Only a created run can be started."
+                ),
+            )
         try:
-            loaded = suite_loader.load_suite(run.suite_name, settings.evaluations_dir)
+            loaded = orchestrator.load_run_suite(run, settings.evaluations_dir)
         except suite_loader.SuiteNotFoundError:
             run.state = "failed"
             run.completed_at = _now()
@@ -236,22 +246,29 @@ async def start_evaluation_run(request: Request, run_id: int) -> StreamingRespon
                     f"was created. Start a new evaluation run."
                 ),
             )
-        if run.state == "running":
+        if (_conflict := _active_run(session, run_id)) is not None:
             raise HTTPException(
                 status_code=409,
-                detail=f"Evaluation run {run_id} is already running.",
-            )
-        conflicting = _active_run(session, run_id)
-        if conflicting is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Evaluation run {conflicting.id} is already running.",
+                detail=f"Evaluation run {_conflict.id} is already running.",
             )
     return StreamingResponse(
-        _start_stream_events(run_id, engine, settings, transport, run_lock),
+        _start_stream_events(run_id, engine, settings, transport, generation_lock),
         media_type=STREAM_MEDIA_TYPE,
         headers={"Cache-Control": "no-cache"},
     )
+
+
+@router.get("/evaluation-runs")
+def list_evaluation_runs(request: Request) -> list[EvalRunSummary]:
+    engine = _engine(request)
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Evaluation persistence is not configured for this server.",
+        )
+    with session_scope(engine) as session:
+        runs = session.query(EvaluationRun).order_by(EvaluationRun.created_at.desc()).all()
+        return [load_run_summary(run) for run in runs]
 
 
 @router.get("/evaluation-runs/{run_id}")
@@ -293,7 +310,7 @@ def patch_result_score(
         score.hallucination = payload.hallucination
         score.truncation = payload.truncation
         score.unsafe_output = payload.unsafe_output
-        score.failed = payload.failed
+        score.format_failure = payload.format_failure
         score.note = payload.note
         session.commit()
         score_payload = _score_payload(score)
@@ -306,9 +323,9 @@ async def _start_stream_events(
     engine: Engine,
     settings: Settings,
     transport: httpx.AsyncBaseTransport | None,
-    run_lock: asyncio.Lock,
+    generation_lock: asyncio.Lock,
 ) -> AsyncIterator[str]:
-    async with run_lock:
+    async with generation_lock:
         with session_scope(engine) as session:
             run = _get_run(session, run_id)
             async for event in orchestrator.orchestrate_suite(

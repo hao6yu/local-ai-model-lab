@@ -13,7 +13,7 @@ export interface EvalScore {
   hallucination: boolean;
   truncation: boolean;
   unsafe_output: boolean;
-  failed: boolean;
+  format_failure: boolean;
   note: string | null;
 }
 
@@ -26,7 +26,7 @@ export const EMPTY_SCORE: EvalScore = {
   hallucination: false,
   truncation: false,
   unsafe_output: false,
-  failed: false,
+  format_failure: false,
   note: null,
 };
 
@@ -78,6 +78,7 @@ export interface EvalRun {
   max_tokens: number | null;
   context_window: number | null;
   notes: string | null;
+  suite_snapshot: string | null;
   results: EvalResult[];
 }
 
@@ -87,6 +88,17 @@ export interface SuiteListItem {
   hash: string;
   case_count: number;
   source_path: string;
+}
+
+export interface EvalRunBrief {
+  id: number;
+  suite_name: string;
+  suite_version: string;
+  state: EvalState;
+  created_at: string;
+  completed_at: string | null;
+  completed_cases: number;
+  total_cases: number;
 }
 
 export interface EvalProgressPayload {

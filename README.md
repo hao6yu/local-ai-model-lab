@@ -96,6 +96,14 @@ stop-generation, and new-chat, with TTFT, total time, token counts, and
 generation throughput (reported only when reasoning is off, so hidden reasoning
 tokens cannot inflate the figure) surfaced in the UI. A non-SSE response such as
 an HTTP 422 validation error now surfaces as a recoverable error instead of
-freezing the interface. Persistence (Milestone 3), evaluation suites, and
-deployment remain unfinished.
+freezing the interface. Milestone 3 (evaluation suites and saved runs) is now
+implemented end-to-end from the browser: create a run, stream results, score
+results, save scores, list saved runs, and reload a saved run from the
+database. Persistence is defined by the ORM schema, so the app works without
+migrations and still creates its own schema at startup via
+`Base.metadata.create_all`. The alembic migration scripts now match the schema:
+a clean database upgrades through `1_initial` and
+`2_suite_snapshot_and_format_failure`, and an existing M3 database upgrades to
+the current schema with `alembic upgrade head` (SQLite-only). Deployment
+remains unfinished.
 

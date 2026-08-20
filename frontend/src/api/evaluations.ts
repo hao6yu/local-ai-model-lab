@@ -14,6 +14,7 @@ import type {
   EvalResultEventPayload,
   EvalRun,
   EvalScore,
+  EvalRunBrief,
   SuiteListItem,
 } from "../types/evaluations";
 
@@ -30,24 +31,27 @@ export function updateResultScore(id: number, score: EvalScore): Promise<EvalSco
 }
 
 export async function createEvaluationRun(request: EvaluationRunRequest): Promise<number> {
-  const { run_id } = await postJson<EvaluationRunRequest, { run_id: number }>(
+  const { id } = await postJson<EvaluationRunRequest, { id: number }>(
     "/api/evaluation-runs",
     request,
   );
-  return run_id;
+  return id;
+}
+
+export function listSavedRuns(): Promise<EvalRunBrief[]> {
+  return getJson<EvalRunBrief[]>("/api/evaluation-runs");
 }
 
 export async function evaluateSuite(
-  request: EvaluationRunRequest,
+  runId: number,
   callbacks: EvaluateCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
   let response: Response;
   try {
-    response = await fetch("/api/evaluation-runs/start", {
+    response = await fetch(`/api/evaluation-runs/${runId}/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
       signal,
     });
   } catch (error) {
