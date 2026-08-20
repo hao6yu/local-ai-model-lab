@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getHealth, getRuntime } from "../api/client";
 import { ExperimentalBadge } from "../components/ExperimentalBadge";
+import { ChatPlayground } from "../features/chat/ChatPlayground";
 import type { HealthResponse, RuntimeResponse } from "../types/health";
 
 type LoadState =
@@ -44,6 +45,7 @@ export function HomePage() {
 
   const { health, runtime } = state;
   const modelState = health.model.state;
+  const profileState = (key: string) => health.models.find((m) => m.key === key);
 
   return (
     <main className="page">
@@ -78,6 +80,38 @@ export function HomePage() {
           </div>
         </dl>
       </section>
+      {runtime.models.length > 1 ? (
+        <section className="configured-models" aria-label="Configured resident models">
+          <h2>Configured resident models</h2>
+          <p className="detail">Both stay loaded; the portal sends work to only one at a time.</p>
+          <div className="model-grid">
+            {runtime.models.map((model) => (
+              <article className="model-card" key={model.key}>
+                <h3>
+                  {model.profile_label ?? model.model_id ?? model.key}
+                  {model.key === runtime.default_model_profile ? (
+                    <span className="default-badge">default</span>
+                  ) : null}
+                  <ExperimentalBadge visible={model.experimental} />
+                </h3>
+                <p>{model.model_id ?? "Model ID not configured"}</p>
+                <p>
+                  {model.context_window !== null
+                    ? `${model.context_window.toLocaleString()} token context`
+                    : "Context not declared"}
+                </p>
+                <p className="model-card-status">
+                  {profileState(model.key)?.state ?? "not probed"}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <ChatPlayground
+        models={runtime.models}
+        defaultModelProfile={runtime.default_model_profile}
+      />
     </main>
   );
 }

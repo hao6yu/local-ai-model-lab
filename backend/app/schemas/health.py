@@ -11,6 +11,13 @@ class UpstreamHealth(BaseModel):
     detail: str | None = None
 
 
+class ProfileHealth(BaseModel):
+    key: str
+    state: ModelState
+    detail: str | None = None
+
+
 class HealthResponse(BaseModel):
     portal: PortalState
     model: UpstreamHealth
+    models: list[ProfileHealth]

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.core.runtime import is_experimental_label
 from app.main import create_app
-from conftest import make_settings
+from conftest import DUAL_PROFILES_JSON, make_settings
 
 
 def test_runtime_exposes_endpoint_safe_metadata_only() -> None:
@@ -21,6 +21,20 @@ def test_runtime_exposes_endpoint_safe_metadata_only() -> None:
         "profile_label": settings.model_profile_label,
         "context_window": settings.model_context_window,
         "experimental": True,
+        "default_reasoning_effort": settings.default_reasoning_effort,
+        "default_max_tokens": settings.default_max_tokens,
+        "default_model_profile": "default",
+        "models": [
+            {
+                "key": "default",
+                "model_id": settings.model_id,
+                "profile_label": settings.model_profile_label,
+                "context_window": settings.model_context_window,
+                "experimental": True,
+                "default_reasoning_effort": settings.default_reasoning_effort,
+                "default_max_tokens": settings.default_max_tokens,
+            }
+        ],
     }
     text = json.dumps(body)
     assert api_base not in text, "upstream address must not reach the browser"
@@ -42,7 +56,37 @@ def test_runtime_handles_unconfigured_settings() -> None:
         "profile_label": None,
         "context_window": None,
         "experimental": False,
+        "default_reasoning_effort": settings.default_reasoning_effort,
+        "default_max_tokens": settings.default_max_tokens,
+        "default_model_profile": "default",
+        "models": [
+            {
+                "key": "default",
+                "model_id": None,
+                "profile_label": None,
+                "context_window": None,
+                "experimental": False,
+                "default_reasoning_effort": settings.default_reasoning_effort,
+                "default_max_tokens": settings.default_max_tokens,
+            }
+        ],
     }
+
+
+def test_runtime_exposes_two_safe_profiles_and_selected_default() -> None:
+    settings = make_settings(
+        model_profiles_json=DUAL_PROFILES_JSON,
+        default_model_profile="ornith",
+    )
+    client = TestClient(create_app(settings=settings))
+    body = client.get("/api/runtime").json()
+
+    assert body["default_model_profile"] == "ornith"
+    assert body["model_id"] == "ornith-1.5-35b-a3b"
+    assert [model["key"] for model in body["models"]] == ["ornith", "qwen"]
+    serialized = json.dumps(body)
+    assert "127.0.0.1:30000" not in serialized
+    assert "127.0.0.1:30001" not in serialized
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 # Local AI Model Lab
 
-A private web portal for testing local language models on the ASUS Ascent GX10. The first target is Qwen3.8-27B, including the official and experimental uncensored profiles already served through SGLang.
+A private web portal for testing local language models on the ASUS Ascent GX10. The current targets are the Ornith and Qwen model families, each served through SGLang with official and experimental uncensored profiles.
 
 This repository is intentionally documentation-first. Qwen/OpenCode should implement it one milestone at a time rather than inventing requirements while coding.
 
@@ -14,7 +14,7 @@ This repository is intentionally documentation-first. Qwen/OpenCode should imple
 - Compare saved runs from two profiles side by side.
 - Remain private to the local network or Tailscale.
 
-The GX10 should continue loading only one large model at a time. An A/B comparison means running a suite with profile A, switching the model through the existing GX10 management scripts, running it again with profile B, and comparing the saved results. This application must not load or stop models in its first release.
+The GX10 can hold multiple models resident at once, such as Ornith and Qwen, each served through its own SGLang endpoint. The portal switches between those profiles without restarting or switching any model. This application must not start, stop, load, or reload SGLang model containers.
 
 ## Read before coding
 
@@ -38,7 +38,8 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Both backend endpoints are `GET /api/health` and `GET /api/runtime`.
+The backend exposes `GET /api/health`, `GET /api/runtime`, and
+`POST /api/chat/stream`.
 
 Configuration comes from environment variables (optionally a git-ignored
 `backend/.env`). See `backend/.env.example`.
@@ -74,20 +75,27 @@ npm run build
 The backend uvicorn dev server and the Vite dev server both bind to
 `127.0.0.1` by default.
 
-## Recommended first prompt for Qwen/OpenCode
+## Recommended next prompt for Qwen/OpenCode
 
 ```text
-Read AGENTS.md and every file under docs/. Implement Milestone 1 from
-docs/IMPLEMENTATION_PLAN.md only. Do not implement later milestones and do not
-change or restart the GX10 model service. Run the specified tests, then report
-the files changed, commands run, test results, and any unresolved decisions.
+Read AGENTS.md and every file under docs/. Implement the next incomplete
+milestone in docs/IMPLEMENTATION_PLAN.md only. Do not implement other
+milestones and do not change or restart the GX10 model service. Run the
+specified tests, then report the files changed, commands run, test results,
+and any unresolved decisions.
 ```
 
 ## Status
 
-Milestone 1 (project shell and health page) is implemented: backend and
-frontend skeletons, environment-based configuration, `GET /api/health` and
-`GET /api/runtime`, and a health page showing portal and upstream state plus
-the configured model metadata. Chat, persistence, evaluation suites, and
-deployment are still to come (Milestones 2–6).
+Milestones 1 and 2 are implemented. Milestone 1 delivers the project shell,
+environment-based configuration, and `GET /api/health` plus `GET /api/runtime`;
+`/api/health` now reports the state of every configured profile, not just the
+default. Milestone 2 adds a streaming text playground: SSE streaming through
+the backend provider adapter, model/reasoning/temperature/limit controls,
+stop-generation, and new-chat, with TTFT, total time, token counts, and
+generation throughput (reported only when reasoning is off, so hidden reasoning
+tokens cannot inflate the figure) surfaced in the UI. A non-SSE response such as
+an HTTP 422 validation error now surfaces as a recoverable error instead of
+freezing the interface. Persistence (Milestone 3), evaluation suites, and
+deployment remain unfinished.
 

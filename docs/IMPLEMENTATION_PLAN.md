@@ -9,7 +9,8 @@ Deliver:
 - Backend and frontend project skeletons using the documented stack.
 - Environment-based configuration with a safe `.env.example`.
 - `GET /api/health` and `GET /api/runtime`.
-- A responsive page showing portal health, upstream model reachability, configured model ID, profile label, context declaration, and a clear experimental badge when the label contains `experimental`, `community`, or `uncensored`.
+- A responsive page showing portal health, default-upstream reachability, every
+  configured resident model, context declarations, and clear experimental badges.
 - Developer commands in `README.md`.
 - Backend and frontend unit tests for the health state.
 
@@ -28,6 +29,9 @@ Do not implement chat, persistence, evaluation suites, or deployment in this mil
 Deliver:
 
 - Streaming text chat through the backend provider adapter.
+- A model selector populated from endpoint-safe backend metadata; changing it
+  re-targets the next generation while retaining the conversation transcript,
+  and never starts or stops a model container.
 - New-chat, stop-generation, and clear-history controls.
 - Reasoning selection: off, low, medium, high, and xhigh, while gracefully handling modes the provider ignores.
 - Temperature and maximum completion-token settings.
@@ -59,7 +63,7 @@ Acceptance criteria:
 - Only one evaluation executes at a time.
 - Editing a suite after a run does not change the historical run snapshot.
 
-## Milestone 4: sequential A/B comparison
+## Milestone 4: serialized A/B comparison
 
 Deliver:
 
@@ -70,7 +74,8 @@ Deliver:
 
 Acceptance criteria:
 
-- Official and uncensored runs can be compared even though they occurred at different times.
+- Runs from Ornith and Qwen (or later profiles) can be compared even though the
+  portal executes them at different times.
 - Missing/error results remain visible.
 - Exports clearly identify model profile, quantization/runtime notes, settings, and suite version.
 
@@ -116,4 +121,3 @@ Acceptance criteria:
 - Sampled video-frame understanding
 
 These are not authorized by the current plan.
-

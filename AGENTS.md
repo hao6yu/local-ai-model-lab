@@ -45,7 +45,8 @@ Do not silently change a documented product decision. Record proposed changes in
 - Preserve streaming from the upstream endpoint to the browser.
 - Obtain endpoint, model ID, and optional key from environment variables.
 - Do not hard-code Mac hostnames, GX10 addresses, Tailscale names, or secrets.
-- Assume only one model profile is active at a time.
+- Assume Ornith and Qwen may both be resident on separate loopback endpoints,
+  but serialize portal work so only one model generates at a time.
 - A request failure must produce a useful error without destroying the saved run.
 - The server must impose a single active evaluation run for the MVP; normal interactive chat may also be serialized initially.
 
@@ -61,4 +62,3 @@ Do not silently change a documented product decision. Record proposed changes in
 ## Definition of done
 
 A milestone is complete only when its acceptance criteria pass, automated tests pass, documentation reflects any intentional change, and the app can be started using documented commands on a clean development environment.
-

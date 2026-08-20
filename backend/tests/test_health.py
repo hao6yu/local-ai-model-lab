@@ -8,7 +8,7 @@ from app.core.config import Settings
 from app.core.health import probe_upstream
 from app.main import create_app
 from app.schemas.health import UpstreamHealth
-from conftest import MODEL_API_KEY, make_settings
+from conftest import DUAL_PROFILES_JSON, MODEL_API_KEY, make_settings
 
 VALID_MODELS_RESPONSE = {"object": "list", "data": [{"id": "qwen3.8-27b"}]}
 
@@ -29,17 +29,54 @@ def test_health_endpoint_reports_reachable_model() -> None:
     client = TestClient(create_app(settings=make_settings(), probe=_reachable_probe))
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"portal": "ok", "model": {"state": "reachable", "detail": None}}
+    data = response.json()
+    assert data["portal"] == "ok"
+    assert data["model"] == {"state": "reachable", "detail": None}
+    assert data["models"] == [
+        {"key": "default", "state": "reachable", "detail": None},
+    ]
 
 
 def test_health_endpoint_reports_unavailable_model() -> None:
     client = TestClient(create_app(settings=make_settings(), probe=_unavailable_probe))
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {
-        "portal": "ok",
-        "model": {"state": "unavailable", "detail": "could not connect to model endpoint"},
+    data = response.json()
+    assert data["portal"] == "ok"
+    assert data["model"] == {
+        "state": "unavailable",
+        "detail": "could not connect to model endpoint",
     }
+    assert data["models"] == [
+        {
+            "key": "default",
+            "state": "unavailable",
+            "detail": "could not connect to model endpoint",
+        },
+    ]
+
+
+def test_health_endpoint_reports_every_configured_profile() -> None:
+    def _probe(settings: Settings) -> UpstreamHealth:
+        # Simulate: qwen's endpoint is down, ornith is up.
+        if ":30001" in (settings.model_api_base or ""):
+            return UpstreamHealth(state="unavailable", detail="could not connect to model endpoint")
+        return UpstreamHealth(state="reachable")
+
+    client = TestClient(
+        create_app(settings=make_settings(model_profiles_json=DUAL_PROFILES_JSON), probe=_probe)
+    )
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["models"] == [
+        {"key": "ornith", "state": "reachable", "detail": None},
+        {
+            "key": "qwen",
+            "state": "unavailable",
+            "detail": "could not connect to model endpoint",
+        },
+    ]
 
 
 def test_probe_reports_reachable_upstream() -> None:

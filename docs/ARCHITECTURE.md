@@ -21,10 +21,10 @@ Mac browser
 React/Vite + FastAPI on 127.0.0.1
     |
     v
-SSH tunnel on 127.0.0.1:30000
+SSH tunnels on 127.0.0.1:30000 and :30001
     |
     v
-GX10 SGLang on 127.0.0.1:30000
+GX10 SGLang: Ornith on :30000, Qwen on :30001
 ```
 
 ### Intended GX10 deployment
@@ -37,10 +37,13 @@ Mac/phone browser
 GX10 portal on 127.0.0.1:8081
     |
     v
-GX10 SGLang on 127.0.0.1:30000
+GX10 SGLang on 127.0.0.1:30000 and :30001
 ```
 
-The GX10 topology is preferred after development because the portal remains available without keeping the Mac awake and image uploads do not travel through the Mac. Tailscale Funnel must remain disabled.
+The GX10 topology is preferred after development because the portal remains
+available without keeping the Mac awake and image uploads do not travel through
+the Mac. Both inference endpoints remain loopback-only, the backend chooses the
+configured endpoint, and Tailscale Funnel remains disabled.
 
 ## Backend modules
 
@@ -114,26 +117,36 @@ Do not label character-based estimates as tokens. Calculated generation rate is 
 
 ## Concurrency
 
-The MVP evaluation runner has one worker and executes one case at a time. It rejects or queues a second evaluation run. This keeps measurements comparable and avoids competing for unified memory. A later version can test explicit concurrency as its own benchmark mode.
+The MVP evaluation runner has one worker and executes one case at a time. It
+rejects or queues a second evaluation run. Both models may remain resident, but
+the portal does not generate from them concurrently. This keeps measurements
+comparable and avoids competing for unified memory.
 
 ## Configuration
 
-Expected environment variables:
+Preferred dual-resident configuration (shown formatted here; `.env` stores the
+JSON on one line):
+
+```json
+[
+  {"key":"ornith","api_base":"http://127.0.0.1:30000/v1","model_id":"ornith-1.5-35b-a3b","context_window":131072,"default_reasoning_effort":"medium","default_max_tokens":16384},
+  {"key":"qwen","api_base":"http://127.0.0.1:30001/v1","model_id":"qwen3.8-27b","context_window":131072,"default_reasoning_effort":"low","default_max_tokens":16384}
+]
+```
 
 ```text
-MODEL_API_BASE=http://127.0.0.1:30000/v1
+MODEL_PROFILES_JSON=<the JSON list above>
+DEFAULT_MODEL_PROFILE=ornith
 MODEL_API_KEY=
-MODEL_ID=qwen3.8-27b
-MODEL_PROFILE_LABEL=community uncensored Qwen3.8-27B NVFP4 + optimized DSpark
-MODEL_CONTEXT_WINDOW=131072
-DEFAULT_REASONING_EFFORT=low
-DEFAULT_MAX_TOKENS=8192
 DATABASE_URL=sqlite:///./data/model-lab.db
 ```
+
+The older `MODEL_API_BASE`, `MODEL_ID`, and related variables remain a
+backward-compatible one-endpoint fallback. Neither API base is returned to the
+browser.
 
 An `.env.example` may contain safe placeholders. `.env` must be ignored.
 
 ## Deployment boundary
 
 Deployment is a later milestone. Prefer a systemd service or a small multi-architecture container on the GX10. Bind the application to loopback and publish it only with Tailscale Serve. Preserve the current Mac portal as a fallback until the new portal passes text, web UI, vision, restart, and Tailscale tests.
-

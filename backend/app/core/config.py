@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     model_id: str | None = None
     model_profile_label: str | None = None
     model_context_window: int | None = Field(default=None, ge=1)
+    model_profiles_json: str | None = None
+    default_model_profile: str | None = None
+    default_reasoning_effort: str | None = None
+    default_max_tokens: int | None = Field(default=None, ge=1)
+    upstream_timeout_seconds: float = Field(default=60.0, gt=0)
 
 
 def load_settings() -> Settings:

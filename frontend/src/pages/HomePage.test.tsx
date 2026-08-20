@@ -6,6 +6,16 @@ import { HomePage } from "./HomePage";
 const reachableHealth: HealthResponse = {
   portal: "ok",
   model: { state: "reachable", detail: null },
+  models: [],
+};
+
+const dualHealth: HealthResponse = {
+  portal: "ok",
+  model: { state: "reachable", detail: null },
+  models: [
+    { key: "ornith", state: "reachable", detail: null },
+    { key: "qwen", state: "unavailable", detail: "could not connect to model endpoint" },
+  ],
 };
 
 const experimentalRuntime: RuntimeResponse = {
@@ -13,6 +23,10 @@ const experimentalRuntime: RuntimeResponse = {
   profile_label: "community uncensored Qwen3.8-27B NVFP4 + optimized DSpark",
   context_window: 131072,
   experimental: true,
+  default_reasoning_effort: "low",
+  default_max_tokens: 16384,
+  default_model_profile: "qwen",
+  models: [],
 };
 
 const officialRuntime: RuntimeResponse = {
@@ -20,6 +34,10 @@ const officialRuntime: RuntimeResponse = {
   profile_label: "official Qwen3.8-27B NVFP4 + optimized DSpark",
   context_window: 131072,
   experimental: false,
+  default_reasoning_effort: "low",
+  default_max_tokens: 16384,
+  default_model_profile: "qwen",
+  models: [],
 };
 
 interface MockApisOptions {
@@ -75,6 +93,7 @@ describe("HomePage health states", () => {
       health: {
         portal: "ok",
         model: { state: "unavailable", detail: "could not connect to model endpoint" },
+        models: [],
       },
       runtime: officialRuntime,
     });
@@ -93,6 +112,47 @@ describe("HomePage health states", () => {
     expect(await screen.findByText("official Qwen3.8-27B NVFP4 + optimized DSpark"))
       .toBeInTheDocument();
     expect(screen.queryByTestId("experimental-badge")).not.toBeInTheDocument();
+  });
+
+
+  it("shows both resident model profiles and identifies the default", async () => {
+    mockApis({
+      health: dualHealth,
+      runtime: {
+        ...officialRuntime,
+        model_id: "ornith-1.5-35b-a3b",
+        profile_label: "Ornith 1.5 35B-A3B NVFP4",
+        default_model_profile: "ornith",
+        models: [
+          {
+            key: "ornith",
+            model_id: "ornith-1.5-35b-a3b",
+            profile_label: "Ornith 1.5 35B-A3B NVFP4",
+            context_window: 131072,
+            experimental: false,
+            default_reasoning_effort: "medium",
+            default_max_tokens: 16384,
+          },
+          {
+            key: "qwen",
+            model_id: "qwen3.8-27b",
+            profile_label: "Qwen3.8-27B NVFP4 + DFlash2",
+            context_window: 131072,
+            experimental: false,
+            default_reasoning_effort: "low",
+            default_max_tokens: 16384,
+          },
+        ],
+      },
+    });
+    render(<HomePage />);
+
+    expect(await screen.findByRole("heading", { name: /configured resident models/i }))
+      .toBeInTheDocument();
+    expect(screen.getAllByText("Ornith 1.5 35B-A3B NVFP4")).toHaveLength(2);
+    expect(screen.getByText("Qwen3.8-27B NVFP4 + DFlash2")).toBeInTheDocument();
+    expect(screen.getByText("default")).toBeInTheDocument();
+    expect(screen.getByText("unavailable")).toBeInTheDocument();
   });
 
   it("shows a loading state before the backend responds", () => {
