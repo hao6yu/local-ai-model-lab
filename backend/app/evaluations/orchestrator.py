@@ -147,19 +147,22 @@ def _read_fixture(suites_dir: str, filename: str) -> bytes:
 def _run_image_from_data_url(data_url: str) -> bytes:
     import base64
 
-    if ":data:" not in data_url and not data_url.startswith("data:"):
+    if not data_url.startswith("data:"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="the uploaded image must be provided as a data URL.",
         )
-    _prefix, _, payload = data_url.partition(":")
+    _, _, payload = data_url.partition(":")
     media_type, _, fragment = payload.partition(";")
-    if fragment != "base64" and not fragment.startswith("base64"):
+    if not fragment.startswith("base64"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="the uploaded image must use base64 data URL transport.",
         )
-    candidate = fragment[len("base64") :].strip()
+    candidate = fragment[len("base64"):]
+    if candidate.startswith(","):
+        candidate = candidate[1:]
+    candidate = candidate.strip()
     candidate += "=" * (-len(candidate) % 4)
     try:
         raw = base64.b64decode(candidate, validate=False)
@@ -168,7 +171,6 @@ def _run_image_from_data_url(data_url: str) -> bytes:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="the uploaded image data is not valid base64.",
         ) from exc
-    media_type = media_type.split(";")[0].strip()
     if media_type and "image/" not in media_type:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

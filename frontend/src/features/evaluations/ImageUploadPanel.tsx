@@ -63,6 +63,7 @@ export function ImageUploadPanel({ cases, entries, onChange }: ImageUploadPanelP
   if (imageCases.length === 0) {
     return null;
   }
+  const uploadCases = imageCases.filter((case_item) => !case_item.has_fixture);
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const caseId = event.currentTarget.dataset.caseId as string;
@@ -97,15 +98,15 @@ export function ImageUploadPanel({ cases, entries, onChange }: ImageUploadPanelP
     setError(null);
   };
 
-  const uploadedCount = imageCases.filter((case_item) => entries[case_item.id]).length;
+  const uploadedCount = uploadCases.filter((case_item) => entries[case_item.id]).length;
 
   return (
     <section className="eval-image-upload" data-testid="image-upload-panel">
       <h3>Upload images</h3>
       <p className="detail">
         Add an image to every case below. The board validates each file and converts it to JPEG before sending it to the model.
-        {uploadedCount === imageCases.length ? imageCases.length === 1 ? " (1 uploaded)" : ` (${uploadedCount} uploaded)` : null}
-        {uploadedCount < imageCases.length ? ` · ${imageCases.length - uploadedCount} still needed` : null}
+        {uploadCases.length === 0 ? null : uploadedCount === uploadCases.length ? uploadCases.length === 1 ? " (1 uploaded)" : ` (${uploadedCount} uploaded)` : null}
+        {uploadCases.length > 0 && uploadedCount < uploadCases.length ? ` · ${uploadCases.length - uploadedCount} still needed` : null}
       </p>
       {error ? (
         <p className="status error" data-testid="image-upload-error">
@@ -126,7 +127,11 @@ export function ImageUploadPanel({ cases, entries, onChange }: ImageUploadPanelP
             ) : null}
             <p className="image-upload-prompt">{case_item.prompt}</p>
 
-            {entry ? (
+            {case_item.has_fixture ? (
+              <div className="image-upload-fixture" data-testid={`image-fixture-${case_item.id}`}>
+                <span>Suite fixture</span>
+              </div>
+            ) : entry ? (
               <div className="image-upload-preview" data-testid={`image-upload-preview-${case_item.id}`}>
                 <img src={entry.data_url} alt={case_item.category ?? "uploaded image"} />
                 <span className="image-upload-name">{entry.name}</span>

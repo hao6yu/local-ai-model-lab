@@ -1,15 +1,19 @@
+import base64
 import json
 from pathlib import Path
 
 import httpx
+import pytest
 from fake_upstream import FakeUpstream, chunk_frame, finish_frame, sse_done, usage_frame
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import EvaluationRun
+from app.db.models import EvaluationImage, EvaluationRun
 from app.evaluations import suite_loader
+from app.evaluations.orchestrator import _run_image_from_data_url
 from app.main import create_app
 from conftest import make_settings
 
@@ -45,11 +49,31 @@ def _db_engine(tmp_path: Path) -> Engine:
     return create_engine(f"sqlite:///{tmp_path / 'test.db'}")
 
 
-def _client(tmp_path: Path, transport: httpx.AsyncBaseTransport | None) -> TestClient:
-    settings = make_settings(
-        evaluations_dir=str(tmp_path),
-        database_url=f"sqlite:///{tmp_path / 'test.db'}",
-    )
+VISION_PROFILES_JSON = json.dumps([
+    {
+        "key": "qwen",
+        "api_base": "http://127.0.0.1:30001/v1",
+        "model_id": "qwen3.8-27b",
+        "profile_label": "Qwen3.8-27B",
+        "context_window": 131072,
+        "supports_vision": True,
+    }
+])
+
+
+def _client(
+    tmp_path: Path,
+    transport: httpx.AsyncBaseTransport | None = None,
+    *,
+    extra: dict[str, object] | None = None,
+) -> TestClient:
+    values: dict[str, object] = {
+        "evaluations_dir": str(tmp_path),
+        "database_url": f"sqlite:///{tmp_path / 'test.db'}",
+    }
+    if extra:
+        values.update(extra)
+    settings = make_settings(**values)
     return TestClient(create_app(settings=settings, upstream_transport=transport))
 
 
@@ -328,3 +352,167 @@ def test_list_suite_cases_reports_input_type_and_case_type(tmp_path: Path) -> No
     assert by_id["caption"]["case_type"] == "transcribe"
     assert by_id["explain"]["input_type"] == "image"
     assert by_id["explain"]["case_type"] == "interpret"
+
+
+def _png_data_url() -> str:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), (255, 0, 0)).save(buf, format="PNG")
+    return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('ascii')}"
+
+
+def _write_image_suite(suites_dir: Path, name: str, *, fixture: bool = False) -> None:
+    case: dict[str, object] = {
+        "id": "img1",
+        "prompt": "Describe the image",
+        "input_type": "image",
+        "case_type": "transcribe",
+    }
+    if fixture:
+        case["image"] = {"file": f"{name}-fixture.png"}
+        import io
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (4, 4), (0, 255, 0)).save(buf, format="PNG")
+        (suites_dir / f"{name}-fixture.png").write_bytes(buf.getvalue())
+    (suites_dir / f"{name}.json").write_text(
+        json.dumps({"version": 1, "cases": [case]}), encoding="utf-8"
+    )
+
+
+def _vision_client(tmp_path: Path) -> TestClient:
+    settings = make_settings(
+        evaluations_dir=str(tmp_path),
+        database_url=f"sqlite:///{tmp_path / 'test.db'}",
+        model_profiles_json=VISION_PROFILES_JSON,
+        default_model_profile="qwen",
+    )
+    return TestClient(create_app(settings=settings, upstream_transport=None))
+
+
+# ── _run_image_from_data_url unit tests ──────────────────────────────────────
+
+
+def test_run_image_from_data_url_rejects_non_data_url() -> None:
+    with pytest.raises(HTTPException) as excinfo:
+        _run_image_from_data_url("not-a-data-url")
+    assert excinfo.value.status_code == 400
+    assert "data URL" in excinfo.value.detail
+
+
+def test_run_image_from_data_url_rejects_non_base64_transport() -> None:
+    with pytest.raises(HTTPException) as excinfo:
+        _run_image_from_data_url("data:image/png;charset=utf8,abc")
+    assert excinfo.value.status_code == 400
+    assert "base64" in excinfo.value.detail
+
+
+def test_run_image_from_data_url_rejects_non_image_media_type() -> None:
+    with pytest.raises(HTTPException) as excinfo:
+        _run_image_from_data_url("data:text/plain;base64,QQQQ")
+    assert excinfo.value.status_code == 400
+    assert "image media type" in excinfo.value.detail
+
+
+def test_run_image_from_data_url_rejects_bad_base64() -> None:
+    # "QQQQQ" → 5 data chars + auto-pad → "QQQQQ===" → invalid base64
+    with pytest.raises(HTTPException) as excinfo:
+        _run_image_from_data_url("data:image/png;base64,QQQQQ")
+    assert excinfo.value.status_code == 400
+    assert "base64" in excinfo.value.detail
+
+
+def test_run_image_from_data_url_returns_png_bytes() -> None:
+    raw = _run_image_from_data_url(_png_data_url())
+    assert raw[:4] == b"\x89PNG"
+
+
+# ── integration tests for the image evaluation path ──────────────────────────
+
+
+def test_create_run_image_vision_mismatch_400(tmp_path: Path) -> None:
+    _write_image_suite(tmp_path, "gallery")
+    default_client = _client(tmp_path, None)
+
+    response = default_client.post(
+        "/api/evaluation-runs",
+        json={
+            "suite_name": "gallery",
+            "suite_version": "1",
+            "images": [{"case_id": "img1", "data_url": _png_data_url()}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert "cannot process images" in response.json()["detail"]
+
+
+def test_create_run_image_no_image_400(tmp_path: Path) -> None:
+    _write_image_suite(tmp_path, "gallery")
+    client = _vision_client(tmp_path)
+
+    response = client.post(
+        "/api/evaluation-runs",
+        json={"suite_name": "gallery", "suite_version": "1", "images": []},
+    )
+
+    assert response.status_code == 400
+    assert "no image" in response.json()["detail"]
+
+
+def test_create_run_stores_attached_image(tmp_path: Path) -> None:
+    _write_image_suite(tmp_path, "gallery")
+    client = _vision_client(tmp_path)
+
+    response = client.post(
+        "/api/evaluation-runs",
+        json={
+            "suite_name": "gallery",
+            "suite_version": "1",
+            "images": [{"case_id": "img1", "data_url": _png_data_url()}],
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["id"]
+    engine = _db_engine(tmp_path)
+    with sessionmaker(bind=engine)() as session:
+        image = session.query(EvaluationImage).filter_by(run_id=run_id).one()
+        assert image.case_id == "img1"
+        assert image.source == "attachment"
+        assert image.media_type == "image/jpeg"
+        assert len(image.bytes) > 0
+
+
+def test_create_run_image_fixture_fallback(tmp_path: Path) -> None:
+    _write_image_suite(tmp_path, "gallery", fixture=True)
+    client = _vision_client(tmp_path)
+
+    response = client.post(
+        "/api/evaluation-runs",
+        json={"suite_name": "gallery", "suite_version": "1"},
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["id"]
+    engine = _db_engine(tmp_path)
+    with sessionmaker(bind=engine)() as session:
+        image = session.query(EvaluationImage).filter_by(run_id=run_id).one()
+        assert image.source == "fixture"
+        assert image.case_id == "img1"
+
+
+def test_list_suite_cases_reports_has_fixture(tmp_path: Path) -> None:
+    _write_image_suite(tmp_path, "gallery", fixture=True)
+    client = _client(tmp_path, None)
+
+    cases = client.get("/api/suites/gallery/cases").json()
+    by_id = {c["id"]: c for c in cases}
+
+    assert by_id["img1"]["has_fixture"] is True
+    assert by_id["img1"]["input_type"] == "image"

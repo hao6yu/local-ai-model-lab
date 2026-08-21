@@ -186,6 +186,7 @@ def list_suite_cases(request: Request, name: str) -> list[SuiteCaseSummary]:
             input_type=case.input_type,
             case_type=case.case_type,
             disabled=case.disabled,
+            has_fixture=case.image is not None,
         )
         for case in loaded.enabled_cases()
     ]

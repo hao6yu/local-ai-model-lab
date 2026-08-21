@@ -74,6 +74,7 @@ export interface SuiteCase {
   input_type: InputType;
   case_type: CaseType | null;
   disabled: boolean;
+  has_fixture?: boolean;
 }
 
 export interface EvalRun {

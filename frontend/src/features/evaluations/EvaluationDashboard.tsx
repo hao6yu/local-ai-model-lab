@@ -193,7 +193,7 @@ export function EvaluationDashboard() {
   useEffect(() => {
     const activeRunId = viewedRun ? viewedRun.id : runId;
     const imageResults = results.filter(
-      (result) => result.input_type === "image" && result.state === "completed",
+      (result) => result.input_type === "image" && result.image_source !== null,
     );
     let cancelled = false;
     void Promise.all(
@@ -267,7 +267,7 @@ export function EvaluationDashboard() {
       profile_label: model?.profile_label ?? profileValue,
       model_id: model?.model_id ?? null,
       context_window: model?.context_window ?? runtime?.context_window ?? null,
-      modality: "text",
+      modality: caseList.some((c) => c.input_type === "image") ? "image" : "text",
       notes: notes || null,
       images: imageAttachments,
     };
@@ -291,14 +291,15 @@ export function EvaluationDashboard() {
     }
     const enabledImageCases = caseList.filter((case_item) => case_item.input_type === "image");
     const missingImageCaseIds = enabledImageCases
-      .filter((case_item) => !attachments[case_item.id])
+      .filter((case_item) => !case_item.has_fixture && !attachments[case_item.id])
       .map((case_item) => case_item.id);
     const selectedModel = (runtime?.models ?? []).find(
       (candidate) => candidate.model_id === profileValue || candidate.key === profileValue,
     );
     const visionMismatch =
       enabledImageCases.length > 0 &&
-      !selectedModel?.supports_vision;
+      selectedModel !== undefined &&
+      !selectedModel.supports_vision;
     if (missingImageCaseIds.length > 0) {
       setRunError("Add an image to every image case before starting the run.");
       return;

@@ -76,6 +76,7 @@ class SuiteCaseSummary(BaseModel):
     input_type: InputType
     case_type: CaseType | None
     disabled: bool
+    has_fixture: bool = False
 
 
 class EvalRunSummary(BaseModel):
