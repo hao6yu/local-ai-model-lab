@@ -9,6 +9,7 @@ import type {
   EvaluationRunRequest,
   EvaluateCallbacks,
   EvaluateEvent,
+  EvalComparison,
   EvalProgressPayload,
   EvalRunDonePayload,
   EvalResultEventPayload,
@@ -40,6 +41,33 @@ export async function createEvaluationRun(request: EvaluationRunRequest): Promis
 
 export function listSavedRuns(): Promise<EvalRunBrief[]> {
   return getJson<EvalRunBrief[]>("/api/evaluation-runs");
+}
+
+export async function getComparison(left: number, right: number): Promise<EvalComparison> {
+  const response = await fetch(`/api/comparisons?left=${left}&right=${right}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(await describeHttpError(response));
+  }
+  return (await response.json()) as EvalComparison;
+}
+
+export async function getComparisonExport(
+  left: number,
+  right: number,
+  format: "markdown" | "json",
+): Promise<string> {
+  const response = await fetch(`/api/comparisons/export?left=${left}&right=${right}&format=${format}`, {
+    headers: { Accept: format === "markdown" ? "text/markdown" : "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await describeHttpError(response);
+    throw new Error(
+      `exporting comparison with ${format} failed with HTTP ${response.status} — ${detail}`,
+    );
+  }
+  return response.text();
 }
 
 export async function evaluateSuite(

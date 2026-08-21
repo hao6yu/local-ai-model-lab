@@ -2,11 +2,11 @@ import asyncio
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import cast
+from typing import Literal, cast
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -22,12 +22,20 @@ from app.core.model_profiles import (
 from app.db.models import EvaluationResult, EvaluationRun, ManualScore
 from app.db.session import session_scope
 from app.evaluations import suite_loader
+from app.evaluations.comparison import (
+    ComparisonError,
+    assert_compatible,
+    build_comparison_response,
+    render_comparison_json,
+    render_comparison_markdown,
+)
 from app.evaluations.orchestrator import (
     _error_payload,
     _result_metrics,
     load_run_summary,
 )
 from app.evaluations.schemas import (
+    ComparisonResponse,
     EvalResultWithScores,
     EvalRunDetail,
     EvalRunSummary,
@@ -282,6 +290,72 @@ def get_evaluation_run(request: Request, run_id: int) -> EvalRunDetail:
     with session_scope(engine) as session:
         run = _get_run(session, run_id)
         return _run_detail(run)
+
+
+def _load_compatible_runs(
+    session: Session,
+    left: int,
+    right: int,
+) -> tuple[EvalRunDetail, EvalRunDetail]:
+    left_run = _get_run(session, left)
+    right_run = _get_run(session, right)
+    left_detail = _run_detail(left_run)
+    right_detail = _run_detail(right_run)
+    try:
+        assert_compatible(left_detail, right_detail)
+    except ComparisonError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return left_detail, right_detail
+
+
+@router.get("/comparisons")
+def get_comparison(request: Request, left: int, right: int) -> ComparisonResponse:
+    engine = _engine(request)
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Evaluation persistence is not configured for this server.",
+        )
+    with session_scope(engine) as session:
+        left_detail, right_detail = _load_compatible_runs(session, left, right)
+    return build_comparison_response(left_detail, right_detail)
+
+
+@router.get("/comparisons/export")
+def get_comparison_export(
+    request: Request,
+    left: int,
+    right: int,
+    format: Literal["markdown", "json"] = Query("markdown"),
+) -> Response:
+    engine = _engine(request)
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Evaluation persistence is not configured for this server.",
+        )
+    with session_scope(engine) as session:
+        left_detail, right_detail = _load_compatible_runs(session, left, right)
+    return _export_comparison(format, left_detail, right_detail)
+
+
+def _export_comparison(
+    format: str, left_detail: EvalRunDetail, right_detail: EvalRunDetail
+) -> Response:
+    if format == "json":
+        content = render_comparison_json(left_detail, right_detail)
+        media_type = "application/json"
+        filename = "comparison.json"
+    else:
+        content = render_comparison_markdown(left_detail, right_detail)
+        media_type = "text/markdown"
+        filename = "comparison.md"
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.patch("/results/{result_id}/score")

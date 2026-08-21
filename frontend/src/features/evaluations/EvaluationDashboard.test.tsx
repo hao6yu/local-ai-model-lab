@@ -383,4 +383,61 @@ describe("EvaluationDashboard", () => {
     expect(await screen.findByTestId("eval-results")).toBeInTheDocument();
     expect(screen.getAllByTestId("eval-result")).toHaveLength(2);
   });
+
+  it("opens and closes the A/B comparison panel via the compare button", async () => {
+    mockApis({
+      streamBody: "",
+      savedRuns: [
+        {
+          id: 1,
+          suite_name: "uncensored-behavior",
+          suite_version: "1",
+          state: "completed",
+          created_at: "2026-01-01T00:00:00Z",
+          completed_at: "2026-01-01T00:00:01Z",
+          completed_cases: 2,
+          total_cases: 2,
+        },
+      ],
+    });
+    render(<EvaluationDashboard />);
+
+    const compareButton = await screen.findByTestId("compare-runs-button");
+    expect(compareButton).toHaveTextContent("Compare runs");
+
+    fireEvent.click(compareButton);
+    expect(compareButton).toHaveTextContent("Hide comparison");
+    expect(await screen.findByTestId("comparison-panel")).toBeInTheDocument();
+
+    fireEvent.click(compareButton);
+    expect(compareButton).toHaveTextContent("Compare runs");
+    expect(screen.queryByTestId("comparison-panel")).not.toBeInTheDocument();
+  });
+
+  it("hides the A/B comparison panel via its close button", async () => {
+    mockApis({
+      streamBody: "",
+      savedRuns: [
+        {
+          id: 1,
+          suite_name: "uncensored-behavior",
+          suite_version: "1",
+          state: "completed",
+          created_at: "2026-01-01T00:00:00Z",
+          completed_at: "2026-01-01T00:00:01Z",
+          completed_cases: 2,
+          total_cases: 2,
+        },
+      ],
+    });
+    render(<EvaluationDashboard />);
+
+    const compareButton = await screen.findByTestId("compare-runs-button");
+    fireEvent.click(compareButton);
+    expect(await screen.findByTestId("comparison-panel")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("comparison-close-button"));
+    expect(compareButton).toHaveTextContent("Compare runs");
+    expect(screen.queryByTestId("comparison-panel")).not.toBeInTheDocument();
+  });
 });

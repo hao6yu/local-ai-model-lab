@@ -18,6 +18,7 @@ import type {
   SuiteListItem,
 } from "../../types/evaluations";
 import { EMPTY_SCORE } from "../../types/evaluations";
+import { EvalComparison } from "../comparisons/EvalComparison";
 import type { RuntimeResponse } from "../../types/health";
 import { ReasoningEffort } from "../../types/chat";
 
@@ -80,6 +81,7 @@ export function EvaluationDashboard() {
   const [maxTokens, setMaxTokens] = useState("");
   const [savedRuns, setSavedRuns] = useState<EvalRunBrief[]>([]);
   const [savedRunsVisible, setSavedRunsVisible] = useState(false);
+  const [compareVisible, setCompareVisible] = useState(false);
   const [selectedSuite, setSelectedSuite] = useState<string | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("off");
   const [notes, setNotes] = useState("");
@@ -137,7 +139,7 @@ export function EvaluationDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!savedRunsVisible) return;
+    if (!savedRunsVisible && !compareVisible) return;
     let cancelled = false;
     listSavedRuns()
       .then((runs) => {
@@ -149,7 +151,7 @@ export function EvaluationDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [savedRunsVisible]);
+  }, [savedRunsVisible, compareVisible]);
 
   const resetRun = () => {
     abortRef.current?.abort();
@@ -442,6 +444,13 @@ export function EvaluationDashboard() {
         >
           {savedRunsVisible ? "Hide saved runs" : "Show saved runs"}
         </button>
+        <button
+          type="button"
+          data-testid="compare-runs-button"
+          onClick={() => setCompareVisible((visible) => !visible)}
+        >
+          {compareVisible ? "Hide comparison" : "Compare runs"}
+        </button>
         {savedRunsVisible ? (
           savedRuns.length === 0 ? (
             <p className="detail" data-testid="saved-runs-empty">No saved evaluations yet.</p>
@@ -469,6 +478,13 @@ export function EvaluationDashboard() {
           )
         ) : null}
       </section>
+
+      {compareVisible ? (
+        <EvalComparison
+          savedRuns={savedRuns}
+          onClose={() => setCompareVisible(false)}
+        />
+      ) : null}
 
       {viewedRun ? (
         <section className="eval-run-detail" data-testid="eval-run-detail">

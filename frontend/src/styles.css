@@ -454,3 +454,143 @@ dd {
   justify-content: space-between;
   color: #cdd5e6;
 }
+
+/* A/B comparison (Milestone 4) */
+
+.comparison {
+  margin-top: 1.5rem;
+  border: 1px solid #2d3443;
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem 1.25rem;
+  background: #171b24;
+}
+
+.comparison .detail {
+  margin: 0 0 0.75rem;
+  color: #a9b2c4;
+}
+
+.comparison-selectors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.comparison-selectors label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #a9b2c4;
+}
+
+.comparison-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.comparison button {
+  padding: 0.4rem 0.85rem;
+  background: #264a38;
+  color: #9aefb4;
+  border: 1px solid #2d3443;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.comparison button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comparison-side {
+  border: 1px solid #2d3443;
+  border-radius: 0.6rem;
+  padding: 0.85rem;
+  background: #10131a;
+}
+
+.comparison-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.comparison-side-label {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a9b2c4;
+}
+
+.comparison-side-summary {
+  margin: 0.5rem 0;
+  color: #cdd5e6;
+}
+
+.comparison-result-pair {
+  border: 1px solid #2d3443;
+  border-radius: 0.6rem;
+  padding: 0.85rem;
+  background: #10131a;
+  margin-bottom: 0.75rem;
+}
+
+.comparison-result-header {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.comparison-result-prompt {
+  margin: 0.25rem 0 0.5rem;
+  color: #cdd5e6;
+  border-left: 3px solid #2d3443;
+  padding-left: 0.5rem;
+  white-space: pre-wrap;
+}
+
+.comparison-result-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.comparison-response {
+  margin: 0.35rem 0;
+  white-space: pre-wrap;
+  color: #e8ecf3;
+}
+
+.comparison-result-error {
+  margin: 0.35rem 0;
+  color: #f0a6a6;
+}
+
+.comparison-metrics {
+  margin: 0.35rem 0 0;
+  color: #a9b2c4;
+  font-size: 0.8rem;
+}
+
+.comparison-scores {
+  margin: 0.35rem 0;
+  color: #cdd5e6;
+}
+
+.comparison-result-flags {
+  margin: 0.25rem 0;
+  color: #ffd54d;
+  font-size: 0.8rem;
+}
+
+.comparison-note {
+  margin: 0.35rem 0;
+  color: #9aefb4;
+  font-size: 0.85rem;
+}

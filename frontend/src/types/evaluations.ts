@@ -101,6 +101,26 @@ export interface EvalRunBrief {
   total_cases: number;
 }
 
+export interface EvalScoreSummary {
+  mean_score: number | null;
+  scored_count: number;
+  total_count: number;
+}
+
+export interface EvalSideSummaries {
+  overall: EvalScoreSummary | null;
+  by_category: Record<string, EvalScoreSummary>;
+}
+
+export interface EvalComparison {
+  left: EvalRun;
+  right: EvalRun;
+  summaries: {
+    left: EvalSideSummaries;
+    right: EvalSideSummaries;
+  };
+}
+
 export interface EvalProgressPayload {
   run_id: number;
   case_index: number;

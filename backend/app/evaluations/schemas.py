@@ -111,6 +111,28 @@ class EvalRunDetail(EvalRunSummary):
     results: list[EvalResultWithScores] = []
 
 
+class ScoreSummary(BaseModel):
+    mean_score: float | None = None
+    scored_count: int = 0
+    total_count: int = 0
+
+
+class SideSummaries(BaseModel):
+    overall: ScoreSummary | None = None
+    by_category: dict[str, ScoreSummary] = {}
+
+
+class Summaries(BaseModel):
+    left: SideSummaries
+    right: SideSummaries
+
+
+class ComparisonResponse(BaseModel):
+    left: EvalRunDetail
+    right: EvalRunDetail
+    summaries: Summaries
+
+
 class EvalProgressPayload(BaseModel):
     run_id: int
     case_index: int

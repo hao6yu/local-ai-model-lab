@@ -107,3 +107,17 @@ a clean database upgrades through `1_initial` and
 the current schema with `alembic upgrade head` (SQLite-only). Deployment
 remains unfinished.
 
+Milestone 4 adds serialized A/B comparison between saved runs. The user
+selects two finished runs from the same suite name, version, and cases, and
+the portal renders them side by side. Compatible runs are matched by `case_id`
+rather than array position, so runs from different models (for example Ornith
+and Qwen) can be compared even though they were executed at different times.
+Each case shows the shared prompt, both responses, timing and throughput
+metrics, per-result scores, refusal/hallucination and other flags, and manual
+notes. A run that is not finished (still created or running), or whose case
+prompts do not match, is rejected with a descriptive error instead of a generic
+one. The comparison can
+be exported to Markdown (including the prompt, notes, and flags) or to
+machine-readable JSON. A single active evaluation run is preserved so
+comparison results stay consistent while another run executes.
+

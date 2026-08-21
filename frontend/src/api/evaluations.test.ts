@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEvaluationRun, evaluateSuite, getSuites, getEvaluationRun, updateResultScore } from "./evaluations";
+import { createEvaluationRun, evaluateSuite, getSuites, getEvaluationRun, updateResultScore, getComparison, getComparisonExport } from "./evaluations";
 import type { EvaluationRunRequest } from "../types/evaluations";
 import { EMPTY_SCORE } from "../types/evaluations";
 
@@ -246,5 +246,53 @@ describe("evaluateSuite", () => {
     const suites = await getSuites();
     expect(suites).toHaveLength(1);
     expect(suites[0].name).toBe("uncensored-behavior");
+  });
+});
+
+describe("comparison API", () => {
+  it("loads a comparison for two runs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({
+          left: { id: 1, state: "completed" },
+          right: { id: 2, state: "completed" },
+          summaries: { left: {}, right: {} },
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    const data = await getComparison(1, 2);
+    expect(data.left.id).toBe(1);
+    expect(data.right.id).toBe(2);
+    expect(data.summaries.left).toBeDefined();
+    expect(data.summaries.right).toBeDefined();
+  });
+
+  it("returns the raw markdown from the export endpoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response("# A/B comparison", {
+          status: 200,
+          headers: { "Content-Type": "text/markdown" },
+        }),
+      ),
+    );
+
+    const text = await getComparisonExport(3, 4, "markdown");
+    expect(text).toBe("# A/B comparison");
+  });
+
+  it("throws when the export endpoint returns an error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 400, headers: { "Content-Type": "application/json" } })),
+    );
+
+    await expect(getComparisonExport(1, 2, "json")).rejects.toThrow(/failed with HTTP 400/);
   });
 });
