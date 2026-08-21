@@ -48,6 +48,10 @@ const results: EvalResult[] = [
     error: null,
     metrics,
     state: "completed",
+    input_type: "text",
+    case_type: null,
+    image_media_type: null,
+    image_source: null,
     scores: null,
   },
   {
@@ -61,6 +65,10 @@ const results: EvalResult[] = [
     error: null,
     metrics,
     state: "completed",
+    input_type: "text",
+    case_type: null,
+    image_media_type: null,
+    image_source: null,
     scores: null,
   },
 ];
@@ -129,6 +137,9 @@ function mockApis(config: MockConfig) {
     }
     if (path.endsWith("/api/suites")) {
       return json(suites);
+    }
+    if (path.includes("/cases")) {
+      return json([]);
     }
     if (path.endsWith("/api/evaluation-runs") && method === "POST") {
       return new Response(JSON.stringify({ id: runId }), {
@@ -319,6 +330,7 @@ describe("EvaluationDashboard", () => {
             experimental: false,
             default_reasoning_effort: "low",
             default_max_tokens: 16384,
+            supports_vision: false,
           },
           {
             key: "qwen",
@@ -328,6 +340,7 @@ describe("EvaluationDashboard", () => {
             experimental: false,
             default_reasoning_effort: "low",
             default_max_tokens: 16384,
+            supports_vision: true,
           },
         ],
       },

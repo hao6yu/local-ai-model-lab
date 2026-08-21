@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Literal, cast
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
@@ -33,6 +33,7 @@ from app.evaluations.orchestrator import (
     _error_payload,
     _result_metrics,
     load_run_summary,
+    store_run_images,
 )
 from app.evaluations.schemas import (
     ComparisonResponse,
@@ -42,6 +43,7 @@ from app.evaluations.schemas import (
     EvalScorePayload,
     EvaluationRunRequest,
     ManualScoreUpdate,
+    SuiteCaseSummary,
     SuiteListItem,
 )
 from app.schemas.chat import ReasoningEffort
@@ -123,6 +125,10 @@ def _result_with_scores(result: EvaluationResult) -> EvalResultWithScores:
         error=_error_payload(result.error_code, result.error_message),
         metrics=_result_metrics(result),
         state=result.state,
+        input_type=result.input_type,
+        case_type=result.case_type,
+        image_media_type=result.image_media_type,
+        image_source=result.image_source,
         scores=_score_payload(result.scores),
     )
 
@@ -162,6 +168,29 @@ def list_suites(request: Request) -> list[SuiteListItem]:
     return _list_suites(settings.evaluations_dir)
 
 
+@router.get("/suites/{name}/cases")
+def list_suite_cases(request: Request, name: str) -> list[SuiteCaseSummary]:
+    settings: Settings = request.app.state.settings
+    try:
+        loaded = suite_loader.load_suite(name, settings.evaluations_dir)
+    except suite_loader.SuiteNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Suite '{name}' was not found.",
+        ) from None
+    return [
+        SuiteCaseSummary(
+            id=case.id,
+            category=case.category,
+            prompt=case.prompt,
+            input_type=case.input_type,
+            case_type=case.case_type,
+            disabled=case.disabled,
+        )
+        for case in loaded.enabled_cases()
+    ]
+
+
 @router.post("/evaluation-runs")
 def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> EvalRunDetail:
     settings: Settings = request.app.state.settings
@@ -190,6 +219,16 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
     except ModelProfileError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    enabled_image_cases = loaded.enabled_image_cases()
+    if enabled_image_cases and not profile.supports_vision:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"The selected model profile '{profile.profile_label}' cannot process "
+                "images. Choose a vision-capable profile to run image cases."
+            ),
+        )
+
     with session_scope(engine) as session:
         run = EvaluationRun(
             suite_name=payload.suite_name,
@@ -208,6 +247,14 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
             state="created",
         )
         session.add(run)
+        session.flush()
+        store_run_images(
+            session,
+            run,
+            loaded,
+            payload.images,
+            settings.evaluations_dir,
+        )
         session.commit()
         return _run_detail(run)
 
@@ -290,6 +337,35 @@ def get_evaluation_run(request: Request, run_id: int) -> EvalRunDetail:
     with session_scope(engine) as session:
         run = _get_run(session, run_id)
         return _run_detail(run)
+
+
+@router.get("/evaluation-runs/{run_id}/results/{result_id}/image")
+def get_result_image(request: Request, run_id: int, result_id: int) -> Response:
+    engine = _engine(request)
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Evaluation persistence is not configured for this server.",
+        )
+    with session_scope(engine) as session:
+        run = _get_run(session, run_id)
+        result = session.get(EvaluationResult, result_id)
+        if result is None or result.run_id != run.id:
+            raise HTTPException(
+                status_code=404,
+                detail="The requested result image was not found.",
+            )
+        if result.image_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail="The requested case has no stored image.",
+            )
+        media_type = result.image_media_type or "image/jpeg"
+        return Response(
+            content=result.image_data,
+            media_type=media_type,
+            headers={"Cache-Control": "no-cache"},
+        )
 
 
 def _load_compatible_runs(

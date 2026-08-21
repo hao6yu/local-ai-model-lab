@@ -455,6 +455,146 @@ dd {
   color: #cdd5e6;
 }
 
+.eval-case-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.3rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ffd54d;
+  border: 1px solid #2d3443;
+  background: #171b24;
+}
+
+.eval-result-image {
+  margin: 0.4rem 0;
+  border: 1px solid #2d3443;
+  border-radius: 0.4rem;
+  padding: 0.5rem;
+  background: #10131a;
+}
+
+.eval-result-image img {
+  display: block;
+  max-width: 22rem;
+  max-height: 14rem;
+  width: auto;
+  height: auto;
+  border-radius: 0.3rem;
+  margin-bottom: 0.35rem;
+}
+
+.eval-result-image-meta {
+  font-size: 0.78rem;
+  color: #a9b2c4;
+}
+
+.eval-image-upload {
+  margin-top: 1rem;
+  border: 1px solid #2d3443;
+  border-radius: 0.6rem;
+  padding: 0.85rem;
+  background: #171b24;
+}
+
+.eval-image-upload h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.eval-image-upload .detail {
+  margin: 0 0 0.75rem;
+  color: #a9b2c4;
+  font-size: 0.85rem;
+}
+
+.image-upload-item {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #2d3443;
+}
+
+.image-upload-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.image-upload-index {
+  font-weight: 700;
+  color: #e8ecf3;
+}
+
+.image-upload-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.3rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ffd54d;
+  border: 1px solid #2d3443;
+  background: #10131a;
+}
+
+.image-upload-category {
+  display: block;
+  margin-top: 0.25rem;
+  color: #cdd5e6;
+  font-size: 0.85rem;
+}
+
+.image-upload-prompt {
+  margin: 0.25rem 0 0.5rem;
+  color: #cdd5e6;
+  white-space: pre-wrap;
+}
+
+.image-upload-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border: 1px solid #2d3443;
+  border-radius: 0.4rem;
+  background: #10131a;
+}
+
+.image-upload-preview img {
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+  border-radius: 0.3rem;
+}
+
+.image-upload-name {
+  flex: 1;
+  font-size: 0.8rem;
+  color: #cdd5e6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-upload-remove {
+  padding: 0.25rem 0.6rem;
+  background: #2d3443;
+  color: #e8ecf3;
+  border: 1px solid #1d2029;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.image-upload-item label input[type="file"] {
+  padding: 0.4rem;
+  background: #10131a;
+  color: #e8ecf3;
+  border: 1px solid #2d3443;
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+}
+
+
 /* A/B comparison (Milestone 4) */
 
 .comparison {

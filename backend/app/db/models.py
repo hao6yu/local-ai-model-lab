@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    LargeBinary,
     Text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -72,6 +73,12 @@ class EvaluationRun(Base):
         cascade="all, delete-orphan",
         order_by="EvaluationResult.index",
     )
+    images: Mapped[list["EvaluationImage"]] = relationship(
+        "EvaluationImage",
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="EvaluationImage.case_id",
+    )
 
 
 class EvaluationResult(Base):
@@ -98,6 +105,12 @@ class EvaluationResult(Base):
     prompt_tokens: Mapped[int | None] = mapped_column(nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(nullable=True)
     token_source: Mapped[str | None] = mapped_column(nullable=True)
+    input_type: Mapped[str | None] = mapped_column(nullable=True)
+    case_type: Mapped[str | None] = mapped_column(nullable=True)
+    image_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    image_media_type: Mapped[str | None] = mapped_column(nullable=True)
+    image_source: Mapped[str | None] = mapped_column(nullable=True)
+    image_data_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     run: Mapped["EvaluationRun"] = relationship(back_populates="results")
     scores: Mapped["ManualScore"] = relationship(
         "ManualScore",
@@ -128,3 +141,19 @@ class ManualScore(Base):
     unsafe_output: Mapped[bool] = mapped_column(nullable=False, default=False)
     format_failure: Mapped[bool] = mapped_column(nullable=False, default=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class EvaluationImage(Base):
+    __tablename__ = "evaluation_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("evaluation_runs.id"), index=True, nullable=False
+    )
+    case_id: Mapped[str] = mapped_column(nullable=False)
+    media_type: Mapped[str] = mapped_column(nullable=False)
+    source: Mapped[str] = mapped_column(nullable=False)
+    data_url: Mapped[str] = mapped_column(Text, nullable=False)
+    bytes: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    run: Mapped["EvaluationRun"] = relationship(back_populates="images")

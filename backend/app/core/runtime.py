@@ -32,6 +32,7 @@ def build_runtime(settings: Settings) -> RuntimeResponse:
                 experimental=is_experimental_label(profile.profile_label),
                 default_reasoning_effort=profile.default_reasoning_effort,
                 default_max_tokens=profile.default_max_tokens,
+                supports_vision=profile.supports_vision,
             )
             for profile in profiles
         ],

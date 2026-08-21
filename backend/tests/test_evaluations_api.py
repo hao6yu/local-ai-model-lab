@@ -269,3 +269,62 @@ def test_patch_missing_score_404(tmp_path: Path) -> None:
     response = client.patch("/api/results/999/score", json={"accuracy": 1})
 
     assert response.status_code == 404
+
+
+def test_list_suite_cases_returns_enabled_cases_only(tmp_path: Path) -> None:
+    _write_suite(tmp_path, "alpha")
+    client = _client(tmp_path, None)
+
+    cases = client.get("/api/suites/alpha/cases").json()
+
+    assert [c["id"] for c in cases] == ["u1", "u2"]
+    assert all(c["input_type"] == "text" for c in cases)
+    assert all(c["case_type"] is None for c in cases)
+    assert all(c["disabled"] is False for c in cases)
+    caption = next(c for c in cases if c["id"] == "u1")
+    assert caption["category"] == "categorized"
+    assert caption["prompt"] == "hello"
+
+
+def test_list_suite_cases_404_for_missing_suite(tmp_path: Path) -> None:
+    client = _client(tmp_path, None)
+
+    response = client.get("/api/suites/nope/cases")
+
+    assert response.status_code == 404
+
+
+def test_list_suite_cases_reports_input_type_and_case_type(tmp_path: Path) -> None:
+    (tmp_path / "gallery.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cases": [
+                    {
+                        "id": "caption",
+                        "category": "caption",
+                        "prompt": "Describe",
+                        "input_type": "image",
+                        "case_type": "transcribe",
+                    },
+                    {
+                        "id": "explain",
+                        "category": "explain",
+                        "prompt": "Interpret",
+                        "input_type": "image",
+                        "case_type": "interpret",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = _client(tmp_path, None)
+
+    cases = client.get("/api/suites/gallery/cases").json()
+    by_id = {c["id"]: c for c in cases}
+
+    assert by_id["caption"]["input_type"] == "image"
+    assert by_id["caption"]["case_type"] == "transcribe"
+    assert by_id["explain"]["input_type"] == "image"
+    assert by_id["explain"]["case_type"] == "interpret"

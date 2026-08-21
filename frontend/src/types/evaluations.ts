@@ -46,6 +46,9 @@ export interface EvalError {
   message: string;
 }
 
+export type InputType = "text" | "image";
+export type CaseType = "transcribe" | "interpret" | "image" | null;
+
 export interface EvalResult {
   id: number;
   case_id: string;
@@ -57,7 +60,20 @@ export interface EvalResult {
   error: EvalError | null;
   metrics: EvalMetrics | null;
   state: EvalState;
+  input_type: InputType | null;
+  case_type: CaseType;
+  image_media_type: string | null;
+  image_source: "attachment" | "fixture" | null;
   scores: EvalScore | null;
+}
+
+export interface SuiteCase {
+  id: string;
+  category: string | null;
+  prompt: string;
+  input_type: InputType;
+  case_type: CaseType | null;
+  disabled: boolean;
 }
 
 export interface EvalRun {
@@ -161,6 +177,12 @@ export interface EvaluationRunRequest {
   context_window: number | null;
   modality: string;
   notes: string | null;
+  images: EvalImageAttachment[];
+}
+
+export interface EvalImageAttachment {
+  case_id: string;
+  data_url: string;
 }
 
 export type EvaluateEvent =

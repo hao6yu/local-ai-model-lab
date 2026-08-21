@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     default_model_profile: str | None = None
     default_reasoning_effort: str | None = None
     default_max_tokens: int | None = Field(default=None, ge=1)
+    default_model_supports_vision: bool | None = None
     upstream_timeout_seconds: float = Field(default=60.0, gt=0)
     # Empty string disables persistence (legacy 503 behavior); the default
     # path mirrors the README dev command so `uvicorn app.main:app` "just works".

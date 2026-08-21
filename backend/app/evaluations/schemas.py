@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -6,16 +8,21 @@ from app.schemas.chat import ReasoningEffort
 
 RunState = str
 ResultState = str
+InputType = str
+CaseType = str
+
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_DATA_URL_BYTES = MAX_IMAGE_BYTES * 4
 
 
 class EvalMetricsPayload(BaseModel):
     ttft_seconds: float | None = None
     completion_seconds: float | None = None
     generation_tps: float | None = None
-    generation_tps_source: "str | None" = None
+    generation_tps_source: str | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
-    token_source: "str | None" = None
+    token_source: str | None = None
     request_started_at: float | None = None
 
 
@@ -46,6 +53,12 @@ class EvaluationRunRequest(BaseModel):
     context_window: int | None = Field(default=None, ge=1)
     modality: str = Field(default="text", min_length=1, max_length=50)
     notes: str | None = Field(default=None, max_length=2000)
+    images: list[EvalImageAttachment] = Field(default_factory=list)
+
+
+class EvalImageAttachment(BaseModel):
+    case_id: str = Field(min_length=1, max_length=200)
+    data_url: str = Field(min_length=1, max_length=MAX_DATA_URL_BYTES)
 
 
 class SuiteListItem(BaseModel):
@@ -54,6 +67,15 @@ class SuiteListItem(BaseModel):
     hash: str
     case_count: int
     source_path: str
+
+
+class SuiteCaseSummary(BaseModel):
+    id: str
+    category: str | None
+    prompt: str
+    input_type: InputType
+    case_type: CaseType | None
+    disabled: bool
 
 
 class EvalRunSummary(BaseModel):
@@ -95,6 +117,10 @@ class EvalResultSummary(BaseModel):
     error: EvalErrorPayload | None = None
     metrics: EvalMetricsPayload | None = None
     state: ResultState = "in_progress"
+    input_type: InputType | None = None
+    case_type: CaseType | None = None
+    image_media_type: str | None = None
+    image_source: str | None = None
 
 
 class EvalResultWithScores(EvalResultSummary):

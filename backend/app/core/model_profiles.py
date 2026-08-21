@@ -18,6 +18,7 @@ class ModelProfile:
     context_window: int | None
     default_reasoning_effort: str | None
     default_max_tokens: int | None
+    supports_vision: bool = False
 
     def apply(self, settings: Settings) -> Settings:
         """Return legacy-shaped settings for the existing provider adapter."""
@@ -68,6 +69,7 @@ def load_model_profiles(settings: Settings) -> tuple[ModelProfile, ...]:
                     item.get("default_max_tokens"),
                     "default_max_tokens",
                 ),
+                supports_vision=bool(item.get("supports_vision", False)),
             )
         )
     return tuple(profiles)
@@ -95,6 +97,7 @@ def _legacy_profile(settings: Settings) -> ModelProfile:
         context_window=settings.model_context_window,
         default_reasoning_effort=settings.default_reasoning_effort,
         default_max_tokens=settings.default_max_tokens,
+        supports_vision=settings.default_model_supports_vision or False,
     )
 
 

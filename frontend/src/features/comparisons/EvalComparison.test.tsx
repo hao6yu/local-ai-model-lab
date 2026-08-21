@@ -74,6 +74,10 @@ function runDetail(runId: number, profileLabel: string, runScores: EvalScore): E
         error: null,
         metrics: null,
         state: "completed",
+        input_type: "text",
+        case_type: null,
+        image_media_type: null,
+        image_source: null,
         scores: runScores,
       },
     ],
@@ -98,6 +102,10 @@ function result(
     error: null,
     metrics: null,
     state: "completed",
+    input_type: "text",
+    case_type: null,
+    image_media_type: null,
+    image_source: null,
     scores: score,
   };
 }

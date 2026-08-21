@@ -132,6 +132,7 @@ describe("HomePage health states", () => {
             experimental: false,
             default_reasoning_effort: "medium",
             default_max_tokens: 16384,
+            supports_vision: false,
           },
           {
             key: "qwen",
@@ -141,6 +142,7 @@ describe("HomePage health states", () => {
             experimental: false,
             default_reasoning_effort: "low",
             default_max_tokens: 16384,
+            supports_vision: true,
           },
         ],
       },

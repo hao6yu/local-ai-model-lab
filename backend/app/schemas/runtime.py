@@ -9,6 +9,7 @@ class RuntimeModel(BaseModel):
     experimental: bool = False
     default_reasoning_effort: str | None = None
     default_max_tokens: int | None = None
+    supports_vision: bool = False
 
 
 class RuntimeResponse(BaseModel):

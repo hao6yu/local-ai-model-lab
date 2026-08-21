@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -9,13 +10,23 @@ logger = logging.getLogger(__name__)
 
 HASH_ALGORITHM = "sha256"
 
+InputType = Literal["text", "image"]
+CaseType = Literal["transcribe", "interpret", "image"]
+
+
+class CaseImage(BaseModel):
+    file: str = Field(min_length=1, max_length=400)
+
 
 class _CaseModel(BaseModel):
     id: str = Field(min_length=1, max_length=200)
     category: str | None = None
     prompt: str = Field(min_length=1)
+    input_type: InputType = "text"
+    case_type: CaseType | None = None
     expected_properties: list[str] = Field(default_factory=list)
     disabled: bool = False
+    image: CaseImage | None = None
 
     @field_validator("id")
     @classmethod
@@ -36,18 +47,28 @@ class LoadedCase:
         id: str,
         category: str | None,
         prompt: str,
+        input_type: InputType,
+        case_type: CaseType | None,
         expected_properties: list[str],
         disabled: bool,
+        image: CaseImage | None,
     ) -> None:
         self.id = id
         self.category = category
         self.prompt = prompt
+        self.input_type = input_type
+        self.case_type = case_type
         self.expected_properties = expected_properties
         self.disabled = disabled
+        self.image = image
 
     @property
     def key(self) -> str:
         return self.id
+
+    @property
+    def is_image(self) -> bool:
+        return self.input_type == "image"
 
 
 class LoadedSuite:
@@ -69,6 +90,12 @@ class LoadedSuite:
 
     def enabled_cases(self) -> list[LoadedCase]:
         return [case for case in self.cases if not case.disabled]
+
+    def enabled_image_cases(self) -> list[LoadedCase]:
+        return [case for case in self.enabled_cases() if case.is_image]
+
+    def enabled_text_cases(self) -> list[LoadedCase]:
+        return [case for case in self.enabled_cases() if not case.is_image]
 
     def all_cases(self) -> list[LoadedCase]:
         return list(self.cases)
@@ -126,8 +153,11 @@ def _parse(name: str, path: str, raw: bytes) -> LoadedSuite:
             id=case.id,
             category=case.category,
             prompt=case.prompt,
+            input_type=case.input_type,
+            case_type=case.case_type,
             expected_properties=case.expected_properties,
             disabled=case.disabled,
+            image=case.image,
         )
         for case in document.cases
     ]

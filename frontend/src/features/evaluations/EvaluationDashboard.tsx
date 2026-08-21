@@ -3,24 +3,30 @@ import { getRuntime } from "../../api/client";
 import {
   createEvaluationRun,
   evaluateSuite,
+  getEvaluationImage,
   getEvaluationRun,
+  getSuiteCases,
   getSuites,
   listSavedRuns,
   updateResultScore,
 } from "../../api/evaluations";
 import type {
+  EvalImageAttachment,
   EvaluationRunRequest,
   EvalResult,
   EvalRun,
   EvalRunBrief,
   EvalScore,
   EvalState,
+  SuiteCase,
   SuiteListItem,
 } from "../../types/evaluations";
 import { EMPTY_SCORE } from "../../types/evaluations";
 import { EvalComparison } from "../comparisons/EvalComparison";
 import type { RuntimeResponse } from "../../types/health";
 import { ReasoningEffort } from "../../types/chat";
+import { ImageUploadPanel } from "./ImageUploadPanel";
+import type { ImageUploadEntry } from "./ImageUploadPanel";
 
 const REASONING_OPTIONS: ReasoningEffort[] = ["off", "low", "medium", "high", "xhigh"];
 
@@ -95,6 +101,11 @@ export function EvaluationDashboard() {
   const [scored, setScored] = useState<Record<number, EvalScore>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
 
+  const [caseList, setCaseList] = useState<SuiteCase[]>([]);
+  const [caseListState, setCaseListState] = useState<"none" | "loading" | "ready" | "error">("none");
+  const [attachments, setAttachments] = useState<Record<string, ImageUploadEntry>>({});
+  const [previews, setPreviews] = useState<Record<number, string>>({});
+
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -153,6 +164,56 @@ export function EvaluationDashboard() {
     };
   }, [savedRunsVisible, compareVisible]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedSuite) {
+      setCaseList([]);
+      setCaseListState("none");
+      return () => {
+        cancelled = true;
+      };
+    }
+    setCaseListState("loading");
+    setAttachments({});
+    getSuiteCases(selectedSuite)
+      .then((cases) => {
+        if (!cancelled) {
+          setCaseList(cases);
+          setCaseListState("ready");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCaseListState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSuite]);
+
+  useEffect(() => {
+    const activeRunId = viewedRun ? viewedRun.id : runId;
+    const imageResults = results.filter(
+      (result) => result.input_type === "image" && result.state === "completed",
+    );
+    let cancelled = false;
+    void Promise.all(
+      imageResults.map(async (result) => {
+        if (activeRunId === null) return;
+        try {
+          const data_url = await getEvaluationImage(activeRunId, result.id);
+          if (!cancelled) {
+            setPreviews((previous) => ({ ...previous, [result.id]: data_url }));
+          }
+        } catch {
+          // Leave the preview unset when the image is not stored.
+        }
+      }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [results, runId, viewedRun]);
+
   const resetRun = () => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -164,6 +225,10 @@ export function EvaluationDashboard() {
     setScored({});
     setEditingId(null);
     setViewedRun(null);
+    setAttachments({});
+    setPreviews({});
+    setCaseList([]);
+    setCaseListState("none");
   };
 
   const handleLoadRun = (run: EvalRunBrief) => {
@@ -190,6 +255,9 @@ export function EvaluationDashboard() {
     const model = (runtime?.models ?? []).find(
       (candidate) => candidate.model_id === profileValue || candidate.key === profileValue,
     );
+    const imageAttachments: EvalImageAttachment[] = Object.entries(attachments).map(
+      ([case_id, entry]) => ({ case_id, data_url: entry.data_url }),
+    );
     return {
       suite_name: selectedSuiteInfo?.name ?? selectedSuite ?? "",
       suite_version: selectedSuiteInfo?.version ?? "1",
@@ -201,11 +269,44 @@ export function EvaluationDashboard() {
       context_window: model?.context_window ?? runtime?.context_window ?? null,
       modality: "text",
       notes: notes || null,
+      images: imageAttachments,
     };
+  };
+
+  const handleUploadChange = (case_id: string, entry: ImageUploadEntry | null) => {
+    setAttachments((previous) => {
+      const next = { ...previous };
+      if (entry === null) {
+        delete next[case_id];
+      } else {
+        next[case_id] = entry;
+      }
+      return next;
+    });
   };
 
   const startRun = () => {
     if (!selectedSuite || state === "running") {
+      return;
+    }
+    const enabledImageCases = caseList.filter((case_item) => case_item.input_type === "image");
+    const missingImageCaseIds = enabledImageCases
+      .filter((case_item) => !attachments[case_item.id])
+      .map((case_item) => case_item.id);
+    const selectedModel = (runtime?.models ?? []).find(
+      (candidate) => candidate.model_id === profileValue || candidate.key === profileValue,
+    );
+    const visionMismatch =
+      enabledImageCases.length > 0 &&
+      !selectedModel?.supports_vision;
+    if (missingImageCaseIds.length > 0) {
+      setRunError("Add an image to every image case before starting the run.");
+      return;
+    }
+    if (visionMismatch) {
+      setRunError(
+        "The selected model profile cannot process images. Choose a vision-capable profile.",
+      );
       return;
     }
     const request = buildRequest();
@@ -402,6 +503,16 @@ export function EvaluationDashboard() {
         </p>
       ) : null}
 
+      {caseListState === "error" ? (
+        <p className="status error" data-testid="image-upload-error-banner">
+          The case list could not be loaded for this suite.
+        </p>
+      ) : null}
+
+      {caseListState === "ready" ? (
+        <ImageUploadPanel cases={caseList} entries={attachments} onChange={handleUploadChange} />
+      ) : null}
+
       {state === "running" && progress ? (
         <p className="eval-progress" data-testid="eval-progress">
           Evaluating case {progress.case_index} of {progress.total}…
@@ -545,6 +656,7 @@ export function EvaluationDashboard() {
               result={result}
               score={scored[result.id] ?? (result.scores ?? { ...EMPTY_SCORE })}
               metrics={formatMetrics(result)}
+              preview={previews[result.id] ?? null}
               isEditing={editingId === result.id}
               onField={(changes) => handleScoreUpdate(result.id, changes)}
               onEdit={() => setEditingId(result.id)}
@@ -562,6 +674,7 @@ interface ResultRowProps {
   result: EvalResult;
   score: EvalScore;
   metrics: string;
+  preview: string | null;
   isEditing: boolean;
   onField(changes: Partial<EvalScore>): void;
   onEdit(): void;
@@ -569,8 +682,9 @@ interface ResultRowProps {
   onCancel(): void;
 }
 
-function ResultRow({ result, score, metrics, isEditing, onField, onEdit, onSave, onCancel }: ResultRowProps) {
+function ResultRow({ result, score, metrics, preview, isEditing, onField, onEdit, onSave, onCancel }: ResultRowProps) {
   const outcome = result.error ? "failed" : result.state;
+  const isImage = result.input_type === "image";
 
   return (
     <article className="eval-result-card" data-testid="eval-result">
@@ -578,10 +692,29 @@ function ResultRow({ result, score, metrics, isEditing, onField, onEdit, onSave,
         <span>
           Case {result.index} — {result.category ?? "uncategorized"}
         </span>
-        <span className={`state state-${outcome}`}>{outcome}</span>
+        <span style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+          {isImage ? (
+            <span className="eval-case-badge" data-testid={`eval-case-badge-${result.case_type ?? "image"}`}>
+              {result.case_type === "transcribe"
+                ? "Exact transcription"
+                : result.case_type === "interpret"
+                  ? "Inferred interpretation"
+                  : "Image"}
+            </span>
+          ) : null}
+          <span className={`state state-${outcome}`}>{outcome}</span>
+        </span>
       </div>
 
       <p className="eval-result-prompt">{result.prompt}</p>
+      {isImage && preview ? (
+        <div className="eval-result-image" data-testid={`eval-result-image-preview-${result.id}`}>
+          <img src={preview} alt={result.category ?? "result image"} />
+          {result.image_media_type ? (
+            <span className="eval-result-image-meta">{result.image_media_type}</span>
+          ) : null}
+        </div>
+      ) : null}
       {result.error ? (
         <p className="eval-result-error" data-testid="eval-result-error">
           {result.error.message}

@@ -53,7 +53,23 @@ def build_upstream_body(settings: Settings, request: ChatStreamRequest) -> dict[
         body["chat_template_kwargs"] = {"enable_thinking": True}
     else:
         body["chat_template_kwargs"] = {"enable_thinking": False}
+    if request.image_url:
+        _attach_image(body["messages"], request.image_url)
     return body
+
+
+def _attach_image(messages: list[Any], image_url: str) -> None:
+    if not messages:
+        return
+    last = messages[-1]
+    parts: list[Any] = []
+    content = last.get("content")
+    if isinstance(content, list):
+        parts.extend(content)
+    else:
+        parts.append({"type": "text", "text": content if content is not None else ""})
+    parts.append({"type": "image_url", "image_url": {"url": image_url}})
+    messages[-1] = {**last, "content": parts}
 
 
 def build_upstream_headers(settings: Settings) -> dict[str, str] | None:

@@ -16,11 +16,16 @@ import type {
   EvalRun,
   EvalScore,
   EvalRunBrief,
+  SuiteCase,
   SuiteListItem,
 } from "../types/evaluations";
 
 export function getSuites(): Promise<SuiteListItem[]> {
   return getJson<SuiteListItem[]>("/api/suites");
+}
+
+export function getSuiteCases(name: string): Promise<SuiteCase[]> {
+  return getJson<SuiteCase[]>(`/api/suites/${encodeURIComponent(name)}/cases`);
 }
 
 export function getEvaluationRun(id: number): Promise<EvalRun> {
@@ -37,6 +42,26 @@ export async function createEvaluationRun(request: EvaluationRunRequest): Promis
     request,
   );
   return id;
+}
+
+export async function getEvaluationImage(
+  runId: number,
+  resultId: number,
+): Promise<string> {
+  const response = await fetch(
+    `/api/evaluation-runs/${runId}/results/${resultId}/image`,
+  );
+  if (!response.ok) {
+    throw new Error(`requesting result image failed with HTTP ${response.status}`);
+  }
+  const mediaType = response.headers.get("Content-Type") ?? "image/jpeg";
+  const buffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let base64 = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    base64 += String.fromCharCode.apply(null, [...bytes.subarray(i, i + 8192)]);
+  }
+  return `data:${mediaType};base64,${base64}`;
 }
 
 export function listSavedRuns(): Promise<EvalRunBrief[]> {

@@ -34,4 +34,5 @@ export interface RuntimeModel {
   experimental: boolean;
   default_reasoning_effort: string | null;
   default_max_tokens: number | null;
+  supports_vision: boolean;
 }

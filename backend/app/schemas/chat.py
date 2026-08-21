@@ -28,6 +28,7 @@ class ChatStreamRequest(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1)
     reasoning_effort: ReasoningEffort = "off"
+    image_url: str | None = Field(default=None, min_length=1, max_length=(10 * 1024 * 1024) * 4)
 
 
 class ChatUsage(BaseModel):

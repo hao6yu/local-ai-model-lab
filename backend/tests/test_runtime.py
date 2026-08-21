@@ -33,6 +33,7 @@ def test_runtime_exposes_endpoint_safe_metadata_only() -> None:
                 "experimental": True,
                 "default_reasoning_effort": settings.default_reasoning_effort,
                 "default_max_tokens": settings.default_max_tokens,
+                "supports_vision": False,
             }
         ],
     }
@@ -68,9 +69,19 @@ def test_runtime_handles_unconfigured_settings() -> None:
                 "experimental": False,
                 "default_reasoning_effort": settings.default_reasoning_effort,
                 "default_max_tokens": settings.default_max_tokens,
+                "supports_vision": False,
             }
         ],
     }
+
+
+def test_runtime_reports_supports_vision_for_the_selected_profile() -> None:
+    settings = make_settings(default_model_supports_vision=True)
+    client = TestClient(create_app(settings=settings))
+    body = client.get("/api/runtime").json()
+
+    assert len(body["models"]) == 1
+    assert body["models"][0]["supports_vision"] is True
 
 
 def test_runtime_exposes_two_safe_profiles_and_selected_default() -> None:

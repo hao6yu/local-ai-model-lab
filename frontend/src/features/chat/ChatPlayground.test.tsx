@@ -12,6 +12,7 @@ const models: RuntimeModel[] = [
     experimental: false,
     default_reasoning_effort: "medium",
     default_max_tokens: 8192,
+    supports_vision: false,
   },
   {
     key: "qwen",
@@ -21,6 +22,7 @@ const models: RuntimeModel[] = [
     experimental: false,
     default_reasoning_effort: "low",
     default_max_tokens: 16384,
+    supports_vision: true,
   },
 ];
 

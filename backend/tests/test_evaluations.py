@@ -118,7 +118,16 @@ async def _run_case(fake: FakeUpstream, case: suite_loader.LoadedCase) -> EvalCa
 
 def test_run_case_records_response_and_metrics() -> None:
     fake = FakeUpstream(frames=_happy_frames())
-    case = suite_loader.LoadedCase("u1", "categorized", "hello", [], False)
+    case = suite_loader.LoadedCase(
+        id="u1",
+        category="categorized",
+        prompt="hello",
+        input_type="text",
+        case_type=None,
+        expected_properties=[],
+        disabled=False,
+        image=None,
+    )
 
     outcome = asyncio.run(_run_case(fake, case))
 
@@ -135,7 +144,16 @@ def test_run_case_records_response_and_metrics() -> None:
 
 def test_run_case_reports_upstream_error_without_reraising() -> None:
     fake = FakeUpstream(status=400, error_response=b'{"error": {"message": "bad request"}}')
-    case = suite_loader.LoadedCase("u1", "categorized", "hello", [], False)
+    case = suite_loader.LoadedCase(
+        id="u1",
+        category="categorized",
+        prompt="hello",
+        input_type="text",
+        case_type=None,
+        expected_properties=[],
+        disabled=False,
+        image=None,
+    )
 
     outcome = asyncio.run(_run_case(fake, case))
 

@@ -14,6 +14,7 @@ const runRequest: EvaluationRunRequest = {
   context_window: null,
   modality: "chat",
   notes: "test run",
+  images: [],
 };
 
 function jsonBody(...frames: string[]): string {

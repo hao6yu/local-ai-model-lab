@@ -81,13 +81,19 @@ Acceptance criteria:
 
 ## Milestone 5: image evaluation
 
+Full design decisions are recorded in `docs/M5_IMAGE_EVAL.md`. Summary:
+
 Deliver:
 
-- JPEG, PNG, and WebP validation and preview.
-- One image per request, 10 MiB maximum.
-- Data URL upstream transport.
-- OCR and visual-reasoning cases.
-- Explicit retention control and deletion behavior.
+- Browser upload of an image per case, validated by file bytes (not name or Content-Type).
+- Accept JPEG, PNG, WebP, HEIC/HEIF, and GIF; 10 MiB maximum; one image per case.
+- Transcode HEIC/HEIF and GIF to JPEG on the backend; the model always receives a JPEG.
+- Data URL upstream transport to the OpenAI-compatible `/v1/chat/completions` endpoint.
+- Vision case pairs with a deterministic transcription case (known transcription).
+- Explicit case-type handling: UI separates exact transcription from interpretation; runs
+  are rejected when a non-vision model (Ornith) is selected for an image case.
+- Retention: images are stored with the saved run and deleted when the run is deleted.
+- Saved-run image preview via a private backend endpoint.
 
 Acceptance criteria:
 

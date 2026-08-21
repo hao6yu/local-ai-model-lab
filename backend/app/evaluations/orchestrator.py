@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.metrics import EvalMetrics
 from app.core.model_profiles import settings_for_profile
-from app.db.models import EvaluationResult, EvaluationRun, ManualScore
+from app.db.models import EvaluationImage, EvaluationResult, EvaluationRun, ManualScore
 from app.evaluations import runner, suite_loader
 from app.evaluations.schemas import (
     EvalErrorPayload,
+    EvalImageAttachment,
     EvalMetricsPayload,
     EvalProgressPayload,
     EvalResultEvent,
@@ -100,19 +101,122 @@ def _stream_payload(result: EvaluationResult, run_summary: EvalRunSummary) -> Ev
 
 
 def _reset_and_seed(session: Session, run: EvaluationRun, loaded: suite_loader.LoadedSuite) -> None:
+    attachments = _attachments_by_case(run)
     for index, case in enumerate(loaded.enabled_cases(), start=1):
         result = EvaluationResult(
             case_id=case.id,
             index=index,
             category=case.category,
             prompt=case.prompt,
+            input_type=case.input_type,
+            case_type=case.case_type,
             state="created",
         )
+        if case.is_image:
+            attachment = attachments.get(case.id)
+            if attachment is not None:
+                result.image_data = attachment.bytes
+                result.image_media_type = attachment.media_type
+                result.image_source = attachment.source
+                result.image_data_url = attachment.data_url
         run.results.append(result)
     session.flush()
     for result in run.results:
         session.add(ManualScore(result_id=result.id))
     session.commit()
+
+
+def _attachments_by_case(run: EvaluationRun) -> dict[str, EvaluationImage]:
+    return {image.case_id: image for image in run.images}
+
+
+def _read_fixture(suites_dir: str, filename: str) -> bytes:
+    import os
+
+    path = os.path.join(suites_dir, filename)
+    try:
+        with open(path, "rb") as handle:
+            return handle.read()
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"the fixture image for this case is missing: {filename}",
+        ) from exc
+
+
+def _run_image_from_data_url(data_url: str) -> bytes:
+    import base64
+
+    if ":data:" not in data_url and not data_url.startswith("data:"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="the uploaded image must be provided as a data URL.",
+        )
+    _prefix, _, payload = data_url.partition(":")
+    media_type, _, fragment = payload.partition(";")
+    if fragment != "base64" and not fragment.startswith("base64"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="the uploaded image must use base64 data URL transport.",
+        )
+    candidate = fragment[len("base64") :].strip()
+    candidate += "=" * (-len(candidate) % 4)
+    try:
+        raw = base64.b64decode(candidate, validate=False)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="the uploaded image data is not valid base64.",
+        ) from exc
+    media_type = media_type.split(";")[0].strip()
+    if media_type and "image/" not in media_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="the uploaded image must use an image media type.",
+        )
+    return raw
+
+
+def store_run_images(
+    session: Session,
+    run: EvaluationRun,
+    loaded: suite_loader.LoadedSuite,
+    attachments: list[EvalImageAttachment],
+    suites_dir: str,
+) -> None:
+    from app.image import validation
+
+    by_case = {attachment.case_id: attachment for attachment in attachments}
+    for case in loaded.enabled_image_cases():
+        attachment = by_case.get(case.id)
+        if attachment is not None:
+            raw = _run_image_from_data_url(attachment.data_url)
+            source = "attachment"
+        elif case.image is not None:
+            raw = _read_fixture(suites_dir, case.image.file)
+            source = "fixture"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"no image was provided for image case '{case.id}'.",
+            )
+        try:
+            image = validation.prepare_image(raw)
+        except validation.MediaValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        session.add(
+            EvaluationImage(
+                run_id=run.id,
+                case_id=case.id,
+                media_type=image.media_type,
+                source=source,
+                data_url=image.data_url,
+                bytes=image.bytes,
+            )
+        )
 
 
 def _ensure_result_row(
@@ -166,13 +270,16 @@ def load_run_suite(run: EvaluationRun, suites_dir: str) -> suite_loader.LoadedSu
     return suite_loader.load_suite(run.suite_name, suites_dir)
 
 
-def build_run_request(run: EvaluationRun, case: suite_loader.LoadedCase) -> ChatStreamRequest:
+def build_run_request(
+    run: EvaluationRun, case: suite_loader.LoadedCase, result_row: EvaluationResult
+) -> ChatStreamRequest:
     return ChatStreamRequest(
         model_profile=run.profile_key,
         messages=[ChatMessage(role="user", content=case.prompt)],
         temperature=run.temperature,
         max_tokens=run.max_tokens,
         reasoning_effort=cast(ReasoningEffort, run.reasoning_effort),
+        image_url=result_row.image_data_url,
     )
 
 
@@ -258,7 +365,7 @@ async def orchestrate_suite(
         outcome = await runner.run_case(
             case,
             settings_for_profile(settings, run.profile_key),
-            build_run_request(run, case),
+            build_run_request(run, case, result_row),
             transport=transport,
         )
         result_row.response = outcome.response
