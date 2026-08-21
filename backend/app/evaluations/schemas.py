@@ -76,6 +76,7 @@ class SuiteCaseSummary(BaseModel):
     input_type: InputType
     case_type: CaseType | None
     disabled: bool
+    expected_transcription: str | None = None
     has_fixture: bool = False
 
 

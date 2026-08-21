@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 HASH_ALGORITHM = "sha256"
 
 InputType = Literal["text", "image"]
-CaseType = Literal["transcribe", "interpret", "image"]
+CaseType = Literal["transcribe", "interpret"]
 
 
 class CaseImage(BaseModel):
@@ -26,6 +26,7 @@ class _CaseModel(BaseModel):
     case_type: CaseType | None = None
     expected_properties: list[str] = Field(default_factory=list)
     disabled: bool = False
+    expected_transcription: str | None = None
     image: CaseImage | None = None
 
     @field_validator("id")
@@ -51,7 +52,8 @@ class LoadedCase:
         case_type: CaseType | None,
         expected_properties: list[str],
         disabled: bool,
-        image: CaseImage | None,
+        expected_transcription: str | None = None,
+        image: CaseImage | None = None,
     ) -> None:
         self.id = id
         self.category = category
@@ -60,6 +62,7 @@ class LoadedCase:
         self.case_type = case_type
         self.expected_properties = expected_properties
         self.disabled = disabled
+        self.expected_transcription = expected_transcription
         self.image = image
 
     @property
@@ -123,6 +126,23 @@ def _suite_path(suites_dir: str, name: str) -> str:
     return os.path.join(suites_dir, f"{name}.json")
 
 
+def _validate_cases(name: str, cases: list[LoadedCase]) -> None:
+    for case in cases:
+        if case.is_image:
+            if case.case_type is None:
+                raise SuiteValidationError(
+                    f"image case '{case.id}' must set case_type to 'transcribe' or 'interpret'."
+                )
+            if case.case_type == "transcribe" and not case.expected_transcription:
+                raise SuiteValidationError(
+                    f"transcribe case '{case.id}' must record the known expected_transcription."
+                )
+        elif case.image is not None or case.case_type is not None:
+            if case.image is not None:
+                raise SuiteValidationError(f"text case '{case.id}' cannot carry an image fixture.")
+            raise SuiteValidationError(f"text case '{case.id}' must not set a case_type.")
+
+
 def load_suite(name: str, suites_dir: str) -> LoadedSuite:
     path = _suite_path(suites_dir, name)
     if not os.path.exists(path):
@@ -157,10 +177,12 @@ def _parse(name: str, path: str, raw: bytes) -> LoadedSuite:
             case_type=case.case_type,
             expected_properties=case.expected_properties,
             disabled=case.disabled,
+            expected_transcription=case.expected_transcription,
             image=case.image,
         )
         for case in document.cases
     ]
+    _validate_cases(name, cases)
     return LoadedSuite(
         name=name,
         version=str(document.version),

@@ -159,7 +159,7 @@ def _run_image_from_data_url(data_url: str) -> bytes:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="the uploaded image must use base64 data URL transport.",
         )
-    candidate = fragment[len("base64"):]
+    candidate = fragment[len("base64") :]
     if candidate.startswith(","):
         candidate = candidate[1:]
     candidate = candidate.strip()
@@ -177,6 +177,42 @@ def _run_image_from_data_url(data_url: str) -> bytes:
             detail="the uploaded image must use an image media type.",
         )
     return raw
+
+
+def _find_case(loaded: suite_loader.LoadedSuite, case_id: str) -> suite_loader.LoadedCase | None:
+    for case in loaded.all_cases():
+        if case.id == case_id:
+            return case
+    return None
+
+
+def assert_image_attachments(
+    images: list[EvalImageAttachment], loaded: suite_loader.LoadedSuite
+) -> None:
+    seen: set[str] = set()
+    for attachment in images:
+        case = _find_case(loaded, attachment.case_id)
+        if case is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"no case '{attachment.case_id}' accepts an image attachment.",
+            )
+        if case.disabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"case '{case.id}' is disabled and cannot carry an image.",
+            )
+        if not case.is_image:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"case '{case.id}' is a text case and cannot carry an image.",
+            )
+        if case.id in seen:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"case '{case.id}' has more than one image attachment.",
+            )
+        seen.add(case.id)
 
 
 def store_run_images(

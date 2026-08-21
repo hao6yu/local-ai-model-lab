@@ -6,6 +6,15 @@ from typing import Literal
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
+try:
+    import pillow_heif  # type: ignore[import-untyped]
+
+    pillow_heif.register_heif_opener()
+except Exception:
+    # macOS supplies HEIC/HEIF decoding through ImageIO; the optional
+    # ``pillow-heif`` plugin only adds portable decode for other platforms.
+    pass
+
 MEDIA_JPEG = "image/jpeg"
 MEDIA_PNG = "image/png"
 MEDIA_WEBP = "image/webp"
@@ -45,9 +54,9 @@ def _fourcc(raw: bytes, offset: int) -> str:
 def detect_media_type(raw: bytes) -> str:
     if not raw:
         raise MediaValidationError("the file is empty.")
-    if raw[:8] == b"\xff\xd8\xff":
+    if raw.startswith(b"\xff\xd8\xff"):
         return MEDIA_JPEG
-    if raw[:8] == b"\x89PNG\r\n\x1a\n":
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
         return MEDIA_PNG
     if raw[:4] == b"GIF8" and raw[4:6] in (b"7a", b"9a"):
         return MEDIA_GIF

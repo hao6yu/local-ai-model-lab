@@ -397,6 +397,65 @@ describe("EvaluationDashboard", () => {
     expect(screen.getAllByTestId("eval-result")).toHaveLength(2);
   });
 
+  it("deletes a saved run after confirmation and removes it from the list", async () => {
+    const { recorded } = mockApis({
+      streamBody: "",
+      savedRuns: [
+        {
+          id: 7,
+          suite_name: "uncensored-behavior",
+          suite_version: "1",
+          state: "completed",
+          created_at: "2026-01-01T00:00:00Z",
+          completed_at: "2026-01-01T00:00:01Z",
+          completed_cases: 2,
+          total_cases: 2,
+        },
+      ],
+    });
+    vi.stubGlobal("confirm", () => true);
+    render(<EvaluationDashboard />);
+
+    fireEvent.click(screen.getByTestId("saved-runs-button"));
+    expect(await screen.findByTestId("saved-run-7")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("saved-run-delete-7"));
+
+    expect(await screen.findByTestId("saved-runs-empty")).toBeInTheDocument();
+
+    const deleteRequest = recorded.find((entry) => entry.method === "DELETE");
+    expect(deleteRequest?.path).toContain("/api/evaluation-runs/7");
+    expect(recorded.some((entry) => entry.method === "DELETE")).toBe(true);
+  });
+
+  it("keeps a saved run when the user cancels the delete prompt", async () => {
+    const { recorded } = mockApis({
+      streamBody: "",
+      savedRuns: [
+        {
+          id: 7,
+          suite_name: "uncensored-behavior",
+          suite_version: "1",
+          state: "completed",
+          created_at: "2026-01-01T00:00:00Z",
+          completed_at: "2026-01-01T00:00:01Z",
+          completed_cases: 2,
+          total_cases: 2,
+        },
+      ],
+    });
+    vi.stubGlobal("confirm", () => false);
+    render(<EvaluationDashboard />);
+
+    fireEvent.click(screen.getByTestId("saved-runs-button"));
+    expect(await screen.findByTestId("saved-run-7")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("saved-run-delete-7"));
+
+    expect(await screen.findByTestId("saved-run-7")).toBeInTheDocument();
+    expect(recorded.some((entry) => entry.method === "DELETE")).toBe(false);
+  });
+
   it("opens and closes the A/B comparison panel via the compare button", async () => {
     mockApis({
       streamBody: "",

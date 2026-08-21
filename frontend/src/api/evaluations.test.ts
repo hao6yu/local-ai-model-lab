@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEvaluationRun, evaluateSuite, getSuites, getEvaluationRun, updateResultScore, getComparison, getComparisonExport } from "./evaluations";
+import { createEvaluationRun, evaluateSuite, getSuites, getEvaluationRun, getEvaluationImage, updateResultScore, getComparison, getComparisonExport } from "./evaluations";
 import type { EvaluationRunRequest } from "../types/evaluations";
 import { EMPTY_SCORE } from "../types/evaluations";
 
@@ -295,5 +295,37 @@ describe("comparison API", () => {
     );
 
     await expect(getComparisonExport(1, 2, "json")).rejects.toThrow(/failed with HTTP 400/);
+  });
+});
+
+describe("getEvaluationImage", () => {
+  it("encodes real JPEG response bytes as a working base64 data URL", async () => {
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x25, 0x99, 0xab, 0x00, 0xfe]);
+    let calledUrl: string | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        calledUrl = input;
+        return new Response(bytes, {
+          status: 200,
+          headers: { "Content-Type": "image/jpeg" },
+        });
+      }),
+    );
+
+    const src = await getEvaluationImage(1, 2);
+    expect(calledUrl).toBe("/api/evaluation-runs/1/results/2/image");
+
+    const expected = btoa(String.fromCharCode(...bytes));
+    expect(src).toBe(`data:image/jpeg;base64,${expected}`);
+    expect(src.split("base64,")[1]).toBe(expected);
+  });
+
+  it("reports a 404 as a request error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 })),
+    );
+    await expect(getEvaluationImage(1, 2)).rejects.toThrow(/failed with HTTP 404/);
   });
 });

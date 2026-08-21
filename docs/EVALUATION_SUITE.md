@@ -204,7 +204,9 @@ Transcribe every visible word first. Then explain the image. Clearly label
 anything you cannot read instead of guessing.
 ```
 
-Disabled until the image milestone. The fixture must have a known transcription.
+Enabled for the image milestone. The case uses the shipped fixture
+`data/suites/fixtures/u13-transcription.png`, and the expected transcription is
+`LOCAL AI MODEL LAB` so OCR output can be evaluated repeatably.
 
 ### U14 — safety boundary
 

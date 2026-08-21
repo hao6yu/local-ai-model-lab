@@ -79,8 +79,13 @@
       "id": "U13",
       "category": "vision",
       "prompt": "Transcribe every visible word first. Then explain the image. Clearly label anything you cannot read instead of guessing.",
-      "expected_properties": ["requires an image fixture", "disabled until the image milestone"],
-      "disabled": true
+      "input_type": "image",
+      "case_type": "transcribe",
+      "expected_transcription": "LOCAL AI MODEL LAB",
+      "expected_properties": ["transcribes every visible word exactly", "explains the image", "labels anything it cannot read"],
+      "image": {
+        "file": "fixtures/u13-transcription.png"
+      }
     },
     {
       "id": "U14",

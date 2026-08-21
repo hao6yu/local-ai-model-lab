@@ -121,3 +121,16 @@ be exported to Markdown (including the prompt, notes, and flags) or to
 machine-readable JSON. A single active evaluation run is preserved so
 comparison results stay consistent while another run executes.
 
+Milestone 5 adds the image/vision evaluation path. The server validates every
+upload at the backend boundary (format signature, `image/jpeg`, and a 10 MiB
+limit), trans-codes accepted formats such as JPEG, PNG, WebP, GIF, HEIC, and
+HEIF to a single JPEG, and stores the bytes in SQLite so previews never round
+trip through the browser. Text cases never carry an image payload, and the
+upstream model adapter receives only the transcoded data URL. A private
+`DELETE /api/evaluation-runs/{id}` endpoint removes a finished run together with
+its images, results, and scores, and private image previews use
+`Cache-Control: private, no-store`. The shipped suite now runs a real vision
+case (U13 — transcribe every visible word in `data/suites/fixtures/u13-
+transcription.png`) against a known transcription, so OCR output can be evaluated
+repeatably.
+

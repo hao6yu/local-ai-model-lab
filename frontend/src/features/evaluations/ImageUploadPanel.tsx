@@ -130,6 +130,12 @@ export function ImageUploadPanel({ cases, entries, onChange }: ImageUploadPanelP
             {case_item.has_fixture ? (
               <div className="image-upload-fixture" data-testid={`image-fixture-${case_item.id}`}>
                 <span>Suite fixture</span>
+                {case_item.expected_transcription != null ? (
+                  <p className="image-upload-expected-transcription">
+                    Expected transcription:{" "}
+                    <code>{case_item.expected_transcription}</code>
+                  </p>
+                ) : null}
               </div>
             ) : entry ? (
               <div className="image-upload-preview" data-testid={`image-upload-preview-${case_item.id}`}>

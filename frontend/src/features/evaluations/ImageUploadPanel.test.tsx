@@ -12,6 +12,7 @@ function makeCase(case_id: string, input_type: "text" | "image", case_type: Suit
     input_type,
     case_type,
     disabled: false,
+    expected_transcription: null,
   };
 }
 

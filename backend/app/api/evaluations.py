@@ -32,6 +32,7 @@ from app.evaluations.comparison import (
 from app.evaluations.orchestrator import (
     _error_payload,
     _result_metrics,
+    assert_image_attachments,
     load_run_summary,
     store_run_images,
 )
@@ -178,6 +179,11 @@ def list_suite_cases(request: Request, name: str) -> list[SuiteCaseSummary]:
             status_code=404,
             detail=f"Suite '{name}' was not found.",
         ) from None
+    except suite_loader.SuiteValidationError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Suite '{name}' is not a valid evaluation suite.",
+        ) from None
     return [
         SuiteCaseSummary(
             id=case.id,
@@ -186,6 +192,7 @@ def list_suite_cases(request: Request, name: str) -> list[SuiteCaseSummary]:
             input_type=case.input_type,
             case_type=case.case_type,
             disabled=case.disabled,
+            expected_transcription=case.expected_transcription,
             has_fixture=case.image is not None,
         )
         for case in loaded.enabled_cases()
@@ -230,6 +237,9 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
             ),
         )
 
+    run_modality = "image" if enabled_image_cases else "text"
+    assert_image_attachments(payload.images, loaded)
+
     with session_scope(engine) as session:
         run = EvaluationRun(
             suite_name=payload.suite_name,
@@ -242,7 +252,7 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
             reasoning_effort=payload.reasoning_effort,
             temperature=payload.temperature,
             max_tokens=payload.max_tokens,
-            modality=payload.modality,
+            modality=run_modality,
             suite_snapshot=loaded.raw,
             notes=payload.notes,
             state="created",
@@ -365,7 +375,7 @@ def get_result_image(request: Request, run_id: int, result_id: int) -> Response:
         return Response(
             content=result.image_data,
             media_type=media_type,
-            headers={"Cache-Control": "no-cache"},
+            headers={"Cache-Control": "private, no-store"},
         )
 
 
@@ -467,6 +477,26 @@ def patch_result_score(
         score_payload = _score_payload(score)
         assert score_payload is not None
         return score_payload
+
+
+@router.delete("/evaluation-runs/{run_id}")
+def delete_run(request: Request, run_id: int) -> Response:
+    engine = _engine(request)
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Evaluation persistence is not configured for this server.",
+        )
+    with session_scope(engine) as session:
+        run = _get_run(session, run_id)
+        if run.state == "running":
+            raise HTTPException(
+                status_code=409,
+                detail="A run that is still running cannot be deleted.",
+            )
+        session.delete(run)
+        session.commit()
+    return Response(status_code=204)
 
 
 async def _start_stream_events(

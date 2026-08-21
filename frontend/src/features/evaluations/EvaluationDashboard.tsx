@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getRuntime } from "../../api/client";
 import {
   createEvaluationRun,
+  deleteEvaluationRun,
   evaluateSuite,
   getEvaluationImage,
   getEvaluationRun,
@@ -98,6 +99,7 @@ export function EvaluationDashboard() {
   const [results, setResults] = useState<EvalResult[]>([]);
   const [progress, setProgress] = useState<{ case_index: number; total: number; status: EvalState } | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [savedRunError, setSavedRunError] = useState<string | null>(null);
   const [scored, setScored] = useState<Record<number, EvalScore>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -243,6 +245,22 @@ export function EvaluationDashboard() {
       .catch(() => {
         setRunError("This saved evaluation could not be loaded.");
         setState("failed");
+      });
+  };
+
+  const handleDeleteRun = (run: EvalRunBrief) => {
+    if (!window.confirm(`Delete evaluation #${run.id}? This removes its results, scores, and any saved images.`)) {
+      return;
+    }
+    setSavedRunError(null);
+    deleteEvaluationRun(run.id)
+      .then(() => {
+        setSavedRuns((previous) => previous.filter((candidate) => candidate.id !== run.id));
+        if (viewedRun?.id === run.id) resetRun();
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "This evaluation could not be deleted.";
+        setSavedRunError(message);
       });
   };
 
@@ -567,26 +585,47 @@ export function EvaluationDashboard() {
           savedRuns.length === 0 ? (
             <p className="detail" data-testid="saved-runs-empty">No saved evaluations yet.</p>
           ) : (
-            <ul data-testid="saved-runs-list">
-              {savedRuns.map((run) => (
-                <li
-                  key={run.id}
-                  className="saved-run-item"
-                  data-testid={`saved-run-${run.id}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleLoadRun(run)}
-                >
-                  <span className={`state state-${run.state}`}>{run.state}</span>
-                  <span>
-                    #{run.id} — {run.suite_name} · version {run.suite_version}
-                  </span>
-                  <span>
-                    {run.completed_cases} / {run.total_cases} · {new Date(run.created_at).toLocaleString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div data-testid="saved-runs-body">
+              {savedRunError ? (
+                <p className="detail" data-testid="saved-runs-error">
+                  {savedRunError}
+                  <button type="button" data-testid="saved-runs-error-dismiss" onClick={() => setSavedRunError(null)}>
+                    Dismiss
+                  </button>
+                </p>
+              ) : null}
+              <ul data-testid="saved-runs-list">
+                {savedRuns.map((run) => (
+                  <li
+                    key={run.id}
+                    className="saved-run-item"
+                    data-testid={`saved-run-${run.id}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleLoadRun(run)}
+                  >
+                    <span className={`state state-${run.state}`}>{run.state}</span>
+                    <span>
+                      #{run.id} — {run.suite_name} · version {run.suite_version}
+                    </span>
+                    <span>
+                      {run.completed_cases} / {run.total_cases} · {new Date(run.created_at).toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      className="saved-run-delete"
+                      data-testid={`saved-run-delete-${run.id}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteRun(run);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )
         ) : null}
       </section>

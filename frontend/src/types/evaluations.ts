@@ -75,6 +75,7 @@ export interface SuiteCase {
   case_type: CaseType | null;
   disabled: boolean;
   has_fixture?: boolean;
+  expected_transcription: string | null;
 }
 
 export interface EvalRun {

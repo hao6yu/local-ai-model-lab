@@ -82,8 +82,11 @@ The initial SQLite database contains:
 - `evaluation_runs`: profile/settings snapshot and run state
 - `evaluation_results`: prompt, response, measurements, error, and finish reason
 - `manual_scores`: four scores, flags, and notes
+- `evaluation_images`: per-case image bytes, media type, and source
 
-Chat playground history can remain browser-local initially. Evaluation results belong in SQLite.
+Chat playground history can remain browser-local initially. Evaluation results and uploaded images belong in SQLite.
+
+Image bytes are validated (format, size, and signature) on the server before anything is stored, and every accepted format is trans-coded to a JPEG so the preview endpoint and the upstream model adapter always see the same bytes. Uploaded bytes never reach the browser, and the upstream model adapter never receives raw bytes — only the transcoded data URL. A run's images live behind the run: deleting a run removes its `evaluation_images`, copied result-image fields, results, and scores in one cascade.
 
 Suite source files live as versioned JSON under `data/suites/`. When a run begins, the suite content and hash are copied into the run snapshot so later edits do not rewrite history.
 
@@ -100,6 +103,10 @@ The exact response schemas should be defined during implementation, but the rout
 - `GET /api/evaluation-runs/{id}`: run and result details
 - `PATCH /api/results/{id}/score`: manual scores and flags
 - `GET /api/comparisons?left={id}&right={id}`: compatible side-by-side data
+- `GET /api/evaluation-runs/{id}/results/{id}/image`: private image preview
+- `DELETE /api/evaluation-runs/{id}`: delete a run and its cascade
+
+Images are served with `Cache-Control: private, no-store` so private browser sessions and shared devices do not cache the bytes, and the browser never receives the upstream model endpoint or credentials. A run may only be deleted once it is finished; a finished run's results, scores, and images are removed together.
 
 The browser never calls SGLang directly.
 

@@ -1,5 +1,6 @@
 import type { ChatErrorPayload } from "../types/chat";
 import {
+  deleteJson,
   describeHttpError,
   getJson,
   patchJson,
@@ -54,18 +55,23 @@ export async function getEvaluationImage(
   if (!response.ok) {
     throw new Error(`requesting result image failed with HTTP ${response.status}`);
   }
-  const mediaType = response.headers.get("Content-Type") ?? "image/jpeg";
   const buffer = await response.arrayBuffer();
   const bytes = new Uint8Array(buffer);
-  let base64 = "";
+  let binary = "";
   for (let i = 0; i < bytes.length; i += 8192) {
-    base64 += String.fromCharCode.apply(null, [...bytes.subarray(i, i + 8192)]);
+    binary += String.fromCharCode.apply(null, [...bytes.subarray(i, i + 8192)]);
   }
+  const base64 = btoa(binary);
+  const mediaType = response.headers.get("Content-Type") ?? "image/jpeg";
   return `data:${mediaType};base64,${base64}`;
 }
 
 export function listSavedRuns(): Promise<EvalRunBrief[]> {
   return getJson<EvalRunBrief[]>("/api/evaluation-runs");
+}
+
+export function deleteEvaluationRun(id: number): Promise<void> {
+  return deleteJson<void>(`/api/evaluation-runs/${id}`);
 }
 
 export async function getComparison(left: number, right: number): Promise<EvalComparison> {

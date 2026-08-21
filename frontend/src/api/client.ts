@@ -21,6 +21,15 @@ export async function postJson<T, R>(path: string, body: T): Promise<R> {
   return (text ? (JSON.parse(text) as R) : ({}) as R);
 }
 
+export async function deleteJson<T>(path: string): Promise<T> {
+  const response = await fetch(path, { method: "DELETE", headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    throw new Error(`deleting ${path} failed with HTTP ${response.status}`);
+  }
+  const text = await response.text();
+  return (text ? (JSON.parse(text) as T) : ({} as T));
+}
+
 export async function patchJson<T, R>(path: string, body: T): Promise<R> {
   const response = await fetch(path, {
     method: "PATCH",
