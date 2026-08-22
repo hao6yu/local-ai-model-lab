@@ -1,0 +1,43 @@
+[Unit]
+Description=Local AI Model Lab Portal
+Documentation=https://github.com/hao6yu/local-ai-model-lab
+After=tailscale.service
+Wants=tailscale.service
+ConditionPathExists=/opt/local-ai-model-lab/backend/app/main.py
+
+[Service]
+# uvicorn stays in the foreground, so systemd simply tracks the main process.
+Type=simple
+User=ai-model-lab
+Group=ai-model-lab
+
+# Install root (see install.sh). The .env file holds endpoints and optional keys.
+WorkingDirectory=/opt/local-ai-model-lab/backend
+EnvironmentFile=-/opt/local-ai-model-lab/backend/.env
+
+# Bind to loopback only. Tailscale Serve fronts 127.0.0.1:8081; the inference
+# endpoints (127.0.0.1:30000/30001/8888) are intentionally NOT exposed here.
+ExecStart=/opt/local-ai-model-lab/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8081
+
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+
+# Hardening: the whole filesystem stays read-only except the data directory,
+# and the portal only needs loopback networking to reach inference.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControls=true
+ProtectClock=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictAddressFamilies=afinet afinet6
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/opt/local-ai-model-lab/data
+
+[Install]
+WantedBy=multi-user.target

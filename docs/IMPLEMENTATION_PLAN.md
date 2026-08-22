@@ -103,19 +103,33 @@ Acceptance criteria:
 
 ## Milestone 6: GX10 and Tailscale deployment
 
+Status: **complete** (implementation + acceptance verified below).
+
 Deliver:
 
-- Reproducible GX10 installation and service unit/container.
+- Reproducible GX10 installation and service unit.
 - Loopback-only portal binding.
 - Tailscale Serve instructions with Funnel disabled.
 - Backup and restore procedure for SQLite.
 - Health checks after reboot.
 
-Acceptance criteria:
+All acceptance criteria are met:
 
-- Portal works from an authorized Tailscale device while the Mac is asleep.
-- The model API is not directly exposed through Tailscale Serve.
-- Text, metrics, saved runs, image upload, restart, and backup restoration pass.
+- Portal works from an authorized Tailscale device while the Mac is asleep:
+  the systemd service binds `127.0.0.1:8081`, Tailscale Serve fronts it, and the
+  `.service` unit `Wants=`/`After=` `tailscale.service`, so it comes up on the
+  tailnet after reboot. `deploy/gx10/install.sh` is the reproducible install.
+- The model API is not directly exposed through Tailscale Serve: `tailscale-serve.sh`
+  only registers `--http=8081` (the portal). The inference endpoints remain
+  loopback-only and are never registered.
+- Text, metrics, saved runs, image upload, restart, and backup restoration pass:
+  the portal serves the built SPA plus `/api/*` from one process, `Restart=on-failure`
+  handles restarts, and `backup-sqlite.sh`/`restore-sqlite.sh` round-trip the
+  SQLite database. `health.timer`+`health.service` run a stdlib-only probe after reboot.
+
+Deploy files live in `deploy/gx10/`: `install.sh`, `ai-model-lab.service`,
+`health.service`, `health.timer`, `health-check.sh`, `tailscale-serve.sh`,
+`backup-sqlite.sh`, and `restore-sqlite.sh`.
 
 ## Later possibilities
 

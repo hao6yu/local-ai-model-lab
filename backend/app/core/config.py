@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # path mirrors the README dev command so `uvicorn app.main:app` "just works".
     database_url: str = Field(default=DEFAULT_DATABASE_URL, min_length=0)
     evaluations_dir: str = Field(default=DEFAULT_EVALUATIONS_DIR, min_length=1)
+    # Optional override for the built frontend served by the portal. When empty
+    # the repository's own frontend/dist is used, so a single self-contained
+    # process can serve both the API and the SPA over loopback.
+    static_files_dir: str | None = None
 
 
 def load_settings() -> Settings:

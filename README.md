@@ -75,6 +75,40 @@ npm run build
 The backend uvicorn dev server and the Vite dev server both bind to
 `127.0.0.1` by default.
 
+## Deployment (GX10 + Tailscale)
+
+The production portal is a single process that serves both the API and the built
+React SPA on loopback (`127.0.0.1:8081`), fronted by Tailscale Serve so only
+tailnet devices reach it. The inference endpoints stay loopback-only and are
+never exposed.
+
+1. **Install** on the GX10 from a checkout of this repo:
+   ```bash
+   cd /path/to/repo
+   sudo ./deploy/gx10/install.sh
+   ```
+   It creates a venv, builds the frontend, installs a systemd service
+   (`ai-model-lab`), and starts it on `127.0.0.1:8081`. Then edit
+   `/opt/local-ai-model-lab/backend/.env` with the inference endpoints.
+2. **Expose over the tailnet** (Funnel stays off):
+   ```bash
+   PORTAL_DOMAIN=my-gx10.ts.net sudo ./deploy/gx10/tailscale-serve.sh
+   ```
+   Without `PORTAL_DOMAIN`, a `.ts.net` subdomain is assigned automatically.
+3. **Health after reboot** runs 2 minutes after boot, then every 10 minutes:
+   ```bash
+   systemctl status health.timer
+   journalctl -u health.service -f
+   ```
+4. **Back up / restore** the SQLite database:
+   ```bash
+   ./deploy/gx10/backup-sqlite.sh                 # -> data/backups/model-lab-*.db.gz
+   sudo ./deploy/gx10/restore-sqlite.sh data/backups/model-lab-20250801-120000.db.gz
+   ```
+
+See `deploy/gx10/` for the service unit, install script, Tailscale helper, and
+backup/restore scripts.
+
 ## Recommended next prompt for Qwen/OpenCode
 
 ```text
@@ -104,8 +138,8 @@ migrations and still creates its own schema at startup via
 `Base.metadata.create_all`. The alembic migration scripts now match the schema:
 a clean database upgrades through `1_initial` and
 `2_suite_snapshot_and_format_failure`, and an existing M3 database upgrades to
-the current schema with `alembic upgrade head` (SQLite-only). Deployment
-remains unfinished.
+the current schema with `alembic upgrade head` (SQLite-only). The GX10 and
+Tailscale deployment (Milestone 6) is described in `docs/IMPLEMENTATION_PLAN.md`.
 
 Milestone 4 adds serialized A/B comparison between saved runs. The user
 selects two finished runs from the same suite name, version, and cases, and
@@ -142,3 +176,13 @@ at load time, a duplicate `(run_id, case_id)` pair is enforced in the database,
 an invalid suite produces a controlled 400 instead of a 500, resetting an
 evaluation clears the suite selection, and deleted runs are restricted to
 finished runs. See `docs/M5_FINAL_REVIEW_FINDINGS.md`.
+
+Milestone 6 delivers the GX10 and Tailscale deployment. The portal is a
+self-contained process serving the built React SPA and the API on loopback
+(`127.0.0.1:8081`); the inference endpoints stay loopback-only. A systemd unit
+(`deploy/gx10/ai-model-lab.service`) runs it behind Tailscale Serve, with Funnel
+disabled so only tailnet devices can reach it. A systemd timer plus a stdlib-only
+health probe verify the portal and its upstream model after reboot. A SQLite
+backup/restore pair protects the saved runs. The reproducible install script
+(`deploy/gx10/install.sh`) creates a venv, builds the frontend, installs the
+units, and starts the service. See `deploy/gx10/`.

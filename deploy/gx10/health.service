@@ -1,0 +1,12 @@
+[Unit]
+Description=Local AI Model Lab post-reboot health check
+After=tailscale.service
+
+[Service]
+Type=oneshot
+User=ai-model-lab
+WorkingDirectory=/opt/local-ai-model-lab
+ExecStart=/opt/local-ai-model-lab/deploy/gx10/health-check.sh
+
+[Install]
+WantedBy=multi-user.target

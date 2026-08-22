@@ -1,0 +1,11 @@
+[Unit]
+Description=Local AI Model Lab periodic portal health check
+
+[Timer]
+# First run 2 minutes after boot so the portal and tailscale settle, then
+# repeat every 10 minutes.
+OnBootSec=2min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

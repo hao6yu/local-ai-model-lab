@@ -1,9 +1,12 @@
 import asyncio
 import os
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
@@ -46,7 +49,23 @@ def create_app(
         _restore_interrupted_runs(engine)
     app.include_router(router)
     app.include_router(evaluations.router)
+    _mount_frontend(app, app.state.settings)
     return app
+
+
+def _mount_frontend(app: FastAPI, settings: Settings) -> None:
+    override = settings.static_files_dir
+    static_dir = Path(override) if override else (DATA_DIRECTORY.parent / "frontend" / "dist")
+    if not static_dir.is_dir():
+        return
+    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    async def _spa_fallback(request: Request, full_path: str) -> FileResponse:
+        candidate = (static_dir / full_path).resolve()
+        if candidate.is_file() and candidate.is_relative_to(static_dir.resolve()):
+            return FileResponse(candidate)
+        return FileResponse(static_dir / "index.html", media_type="text/html; charset=utf-8")
 
 
 app = create_app()
