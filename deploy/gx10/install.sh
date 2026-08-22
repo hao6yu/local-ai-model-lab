@@ -48,8 +48,14 @@ fi
 # --- provision the code tree -------------------------------------------------
 log "creating install tree at $INSTALL_ROOT"
 $SUDO mkdir -p "$INSTALL_ROOT"
-$SUDO chown "$(id -u):$(id -g)" "$INSTALL_ROOT"
-$SUDO rsync -a --exclude='.venv' --exclude='__pycache__' --exclude='.git' --exclude='frontend/dist' \
+# Copy the code tree, excluding local runtime state, secrets, and heavy caches
+# that should not be shipped to a fresh install.
+$SUDO rsync -a \
+  --exclude='.venv' --exclude='__pycache__' --exclude='.git' \
+  --exclude='.env' --exclude='backend/.env' \
+  --exclude='frontend/dist' --exclude='frontend/node_modules' \
+  --exclude='data/model-lab.db' --exclude='data/uploads' --exclude='data/exports' \
+  --exclude='data/backups' \
   "${SRC}/" "${INSTALL_ROOT}/"
 
 # --- dedicated service user --------------------------------------------------
@@ -76,6 +82,8 @@ if [ ! -f "$ENV_FILE" ]; then
   log "creating ${ENV_FILE} from the shipped example — edit it with the real endpoints"
   $SUDO cp "${SRC}/backend/.env.example" "$ENV_FILE"
 fi
+# The .env holds endpoints and optional keys: only the service user may read it.
+$SUDO chmod 0600 "$ENV_FILE"
 
 # --- systemd units -----------------------------------------------------------
 log "installing systemd units"
@@ -86,12 +94,15 @@ $SUDO cp "${SRC}/deploy/gx10/health-check.sh"      /etc/systemd/system/health-ch
 $SUDO chmod 0644 /etc/systemd/system/ai-model-lab.service /etc/systemd/system/health.service /etc/systemd/system/health.timer
 $SUDO chmod 0755 /etc/systemd/system/health-check.sh
 $SUDO chown "$SERVICE_USER:$SERVICE_USER" /etc/systemd/system/health-check.sh
+
+# --- ownership: the service user must own the tree (incl. data/) so its first
+# start and subsequent runs can write the SQLite database and uploads.
+$SUDO chown -R "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_ROOT"
+
+# --- start services ----------------------------------------------------------
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now ai-model-lab.service
 $SUDO systemctl enable --now health.timer
-
-# --- ownership (the service user owns the tree, incl. the data directory) ----
-$SUDO chown -R "$(id -u):$(id -g)" "$INSTALL_ROOT"
 
 log "done. the portal is on http://${PORTAL_HOST}:${PORTAL_PORT}"
 log "next: set up Tailscale Serve (deploy/gx10/tailscale-serve.sh), then:"
