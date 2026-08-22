@@ -1,6 +1,6 @@
 export type ChatRole = "system" | "user" | "assistant";
 
-export type ReasoningEffort = "off" | "low" | "medium" | "high" | "xhigh";
+export type ReasoningEffort = "off" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export type ChatErrorCode =
   | "not_configured"

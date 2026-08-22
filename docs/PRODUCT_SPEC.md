@@ -12,7 +12,7 @@ The initial release is single-user. Family access may be considered later, but a
 
 ## Goals
 
-1. Make either resident GX10 model easy to select and test from a browser.
+1. Make any configured GX10 model easy to select and test from a browser.
 2. Produce repeatable measurements with identical prompts and settings.
 3. Make official-versus-uncensored comparisons easy to inspect.
 4. Preserve enough metadata to understand why two runs differ.
@@ -21,7 +21,7 @@ The initial release is single-user. Family access may be considered later, but a
 ## Non-goals for the MVP
 
 - Starting, stopping, downloading, loading, or reconfiguring model containers.
-- Concurrent generation from both resident models in normal portal use.
+- Concurrent generation from multiple configured models in normal portal use.
 - Autonomous coding-agent tools, shell execution, repository editing, or sub-agents.
 - Public accounts, billing, cloud synchronization, or internet exposure.
 - Training, fine-tuning, quantizing, or modifying model weights.
@@ -35,7 +35,10 @@ The initial release is single-user. Family access may be considered later, but a
 
 An OpenAI-compatible inference server. The retained GX10 deployment uses
 SGLang at `http://127.0.0.1:30000` for Ornith and `http://127.0.0.1:30001` for
-Qwen. These addresses remain private to the backend.
+Qwen. The isolated DeepSeek experiment uses vLLM/SparkInfer at
+`http://127.0.0.1:8888` on the GX10 and a Mac-only tunnel on port 30002. These
+addresses remain private to the backend. DeepSeek runs exclusively; it is not
+resident beside Ornith and Qwen.
 
 ### Model profile
 
@@ -45,6 +48,7 @@ A human-readable snapshot of the loaded model configuration, for example:
 - community uncensored Qwen3.8-27B NVFP4 + optimized DSpark
 - community Qwen3.8-27B uncensored NVFP4 + DFlash2 daily profile
 - OrcaRouter Qwen3.8-27B uncensored NVFP4 + DFlash2 compatibility profile
+- DeepSeek V4 Flash 0731 EXL3 3.0 bpw + DSpark K5
 
 The portal records the profile label supplied by configuration or entered before an evaluation. It does not infer quantization or speculative-decoding settings from the generic API model ID.
 
@@ -65,7 +69,7 @@ The response and measured metadata for one test case within an evaluation run.
 ### Chat playground
 
 1. Open the portal.
-2. Confirm endpoint health and select Ornith or Qwen.
+2. Confirm endpoint health and select DeepSeek, Ornith, or Qwen.
 3. Select a supported reasoning mode and output-token limit.
 4. Send a message and see streamed output.
 5. Start a new conversation or clear local history. Switching models starts a

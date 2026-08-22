@@ -46,12 +46,17 @@ def build_upstream_body(settings: Settings, request: ChatStreamRequest) -> dict[
     max_tokens = request.max_tokens or settings.default_max_tokens
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
-    # SGLang models default to thinking. Omitting reasoning_effort is not enough
-    # to disable it, so send the chat template kwarg explicitly on both paths.
+    # Local reasoning servers default to thinking. Omitting reasoning_effort is
+    # not enough to disable it: DeepSeek/vLLM requires the top-level `none`,
+    # while Qwen/SGLang also consumes the explicit chat-template switch.
     if request.reasoning_effort != "off":
         body["reasoning_effort"] = request.reasoning_effort
-        body["chat_template_kwargs"] = {"enable_thinking": True}
+        body["chat_template_kwargs"] = {
+            "enable_thinking": True,
+            "reasoning_effort": request.reasoning_effort,
+        }
     else:
+        body["reasoning_effort"] = "none"
         body["chat_template_kwargs"] = {"enable_thinking": False}
     if request.image_url:
         _attach_image(body["messages"], request.image_url)

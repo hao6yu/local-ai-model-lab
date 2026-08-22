@@ -21,10 +21,10 @@ Mac browser
 React/Vite + FastAPI on 127.0.0.1
     |
     v
-SSH tunnels on 127.0.0.1:30000 and :30001
+SSH tunnels on 127.0.0.1:30000, :30001, and :30002
     |
     v
-GX10 SGLang: Ornith on :30000, Qwen on :30001
+GX10 inference: Ornith on :30000, Qwen on :30001, or exclusive DeepSeek on :8888
 ```
 
 ### Intended GX10 deployment
@@ -37,7 +37,7 @@ Mac/phone browser
 GX10 portal on 127.0.0.1:8081
     |
     v
-GX10 SGLang on 127.0.0.1:30000 and :30001
+GX10 inference on loopback ports 30000/30001 or exclusive port 8888
 ```
 
 The GX10 topology is preferred after development because the portal remains
@@ -125,19 +125,22 @@ Do not label character-based estimates as tokens. Calculated generation rate is 
 ## Concurrency
 
 The MVP evaluation runner has one worker and executes one case at a time. It
-rejects or queues a second evaluation run. Both models may remain resident, but
-the portal does not generate from them concurrently. This keeps measurements
-comparable and avoids competing for unified memory.
+rejects or queues a second evaluation run. Ornith and Qwen may remain resident,
+but the portal does not generate from them concurrently. DeepSeek owns nearly
+all unified memory and therefore runs alone. This keeps measurements comparable
+and avoids competing for unified memory.
 
 ## Configuration
 
-Preferred dual-resident configuration (shown formatted here; `.env` stores the
-JSON on one line):
+Current experiment configuration (shown formatted here; `.env` stores the JSON
+on one line). Ornith and Qwen are online together; DeepSeek remains configured
+as the exclusive profile used when the dual deployment is deliberately stopped:
 
 ```json
 [
-  {"key":"ornith","api_base":"http://127.0.0.1:30000/v1","model_id":"ornith-1.5-35b-a3b","context_window":131072,"default_reasoning_effort":"medium","default_max_tokens":16384},
-  {"key":"qwen","api_base":"http://127.0.0.1:30001/v1","model_id":"qwen3.8-27b","context_window":131072,"default_reasoning_effort":"low","default_max_tokens":16384}
+  {"key":"deepseek","api_base":"http://127.0.0.1:30002/v1","model_id":"deepseek-v4-flash-0731","context_window":262144,"default_reasoning_effort":"high","default_max_tokens":32768,"supports_vision":false},
+  {"key":"ornith","api_base":"http://127.0.0.1:30000/v1","model_id":"ornith-1.5-35b-a3b","context_window":262144,"default_reasoning_effort":"medium","default_max_tokens":16384,"supports_vision":true},
+  {"key":"qwen","api_base":"http://127.0.0.1:30001/v1","model_id":"qwen3.8-27b","context_window":262144,"default_reasoning_effort":"low","default_max_tokens":16384,"supports_vision":true}
 ]
 ```
 

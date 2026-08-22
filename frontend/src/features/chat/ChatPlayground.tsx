@@ -3,7 +3,7 @@ import type { ChatMessage, ChatErrorPayload, ChatDonePayload, ChatStreamRequest,
 import type { RuntimeModel } from "../../types/health";
 import { streamChat } from "../../api/chatStream";
 
-const REASONING_OPTIONS: ReasoningEffort[] = ["off", "low", "medium", "high", "xhigh"];
+const REASONING_OPTIONS: ReasoningEffort[] = ["off", "low", "medium", "high", "xhigh", "max"];
 
 interface ChatPlaygroundProps {
   models: RuntimeModel[];

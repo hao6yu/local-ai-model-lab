@@ -37,4 +37,6 @@ DEFAULTS: dict[str, object] = {
 
 def make_settings(**overrides: object) -> Settings:
     values: dict[str, object] = {**DEFAULTS, **overrides}
-    return Settings(**values)  # type: ignore[arg-type]
+    # Unit tests must not inherit a developer's live backend/.env profiles.
+    # Each test supplies its complete synthetic runtime configuration here.
+    return Settings(_env_file=None, **values)  # type: ignore[arg-type,call-arg]

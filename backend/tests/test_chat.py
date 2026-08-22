@@ -98,6 +98,7 @@ def test_stream_chat_streams_chunks_usage_finish_reason_and_request_fields() -> 
         "stream": True,
         "stream_options": {"include_usage": True},
         "max_tokens": settings.default_max_tokens,
+        "reasoning_effort": "none",
         "chat_template_kwargs": {"enable_thinking": False},
     }
 
@@ -120,7 +121,10 @@ def test_stream_chat_sends_optional_request_fields_when_set() -> None:
     assert body.body["temperature"] == 0.7
     assert body.body["max_tokens"] == 2048
     assert body.body["reasoning_effort"] == "high"
-    assert body.body["chat_template_kwargs"] == {"enable_thinking": True}
+    assert body.body["chat_template_kwargs"] == {
+        "enable_thinking": True,
+        "reasoning_effort": "high",
+    }
 
 
 def test_stream_chat_applies_default_limit_and_omits_unset_reasoning() -> None:
@@ -135,7 +139,7 @@ def test_stream_chat_applies_default_limit_and_omits_unset_reasoning() -> None:
     assert body.body is not None
     assert "temperature" not in body.body
     assert body.body["max_tokens"] == settings.default_max_tokens
-    assert "reasoning_effort" not in body.body
+    assert body.body["reasoning_effort"] == "none"
     assert body.body["chat_template_kwargs"] == {"enable_thinking": False}
 
 

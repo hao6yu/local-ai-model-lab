@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ReasoningEffort = Literal["off", "low", "medium", "high", "xhigh"]
+ReasoningEffort = Literal["off", "low", "medium", "high", "xhigh", "max"]
 ChatRole = Literal["system", "user", "assistant"]
 TokenSource = Literal["upstream"]
 
