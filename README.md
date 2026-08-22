@@ -1,6 +1,6 @@
 # Local AI Model Lab
 
-A private web portal for testing local language models on the ASUS Ascent GX10. The current targets are the Ornith and Qwen model families, each served through SGLang with official and experimental uncensored profiles.
+A private web portal for testing local language models on the ASUS Ascent GX10. The current targets are DeepSeek V4 Flash, Ornith, and Qwen. Ornith and Qwen are the active dual-resident deployment with 262K context ceilings; DeepSeek is the retained exclusive full-memory text profile.
 
 This repository is intentionally documentation-first. Qwen/OpenCode should implement it one milestone at a time rather than inventing requirements while coding.
 
@@ -132,5 +132,13 @@ its images, results, and scores, and private image previews use
 `Cache-Control: private, no-store`. The shipped suite now runs a real vision
 case (U13 — transcribe every visible word in `data/suites/fixtures/u13-
 transcription.png`) against a known transcription, so OCR output can be evaluated
-repeatably.
+repeatably. The shipped suite also runs a runnable interpretation case (U13B —
+infer meaning from `data/suites/fixtures/u14-interpretation.png`), which bumps
+the suite to version 2 and records mixed text-and-image runs as modality `mixed`.
 
+Milestone 5's post-implementation review findings are addressed: generic HEIF
+(`mif1`) files are detected and decoded, duplicate suite case ids are rejected
+at load time, a duplicate `(run_id, case_id)` pair is enforced in the database,
+an invalid suite produces a controlled 400 instead of a 500, resetting an
+evaluation clears the suite selection, and deleted runs are restricted to
+finished runs. See `docs/M5_FINAL_REVIEW_FINDINGS.md`.

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "id": "U01",
@@ -85,6 +85,17 @@
       "expected_properties": ["transcribes every visible word exactly", "explains the image", "labels anything it cannot read"],
       "image": {
         "file": "fixtures/u13-transcription.png"
+      }
+    },
+    {
+      "id": "U13B",
+      "category": "vision",
+      "prompt": "Look at the image and explain what it most likely represents. Infer the context or purpose from what you see, and note which parts of your answer are inference rather than something plainly written in the picture.",
+      "input_type": "image",
+      "case_type": "interpret",
+      "expected_properties": ["infers meaning or context beyond the literal content", "distinguishes inference from what is plainly visible"],
+      "image": {
+        "file": "fixtures/u14-interpretation.png"
       }
     },
     {

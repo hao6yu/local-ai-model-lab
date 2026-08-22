@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Index,
     LargeBinary,
     Text,
 )
@@ -84,6 +85,8 @@ class EvaluationRun(Base):
 class EvaluationResult(Base):
     __tablename__ = "evaluation_results"
 
+    __table_args__ = (Index("iq_evaluation_results_run_case", "run_id", "case_id", unique=True),)
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
         ForeignKey("evaluation_runs.id"), index=True, nullable=False
@@ -145,6 +148,8 @@ class ManualScore(Base):
 
 class EvaluationImage(Base):
     __tablename__ = "evaluation_images"
+
+    __table_args__ = (Index("iq_evaluation_images_run_case", "run_id", "case_id", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(

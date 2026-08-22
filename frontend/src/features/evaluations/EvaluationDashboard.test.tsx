@@ -512,4 +512,49 @@ describe("EvaluationDashboard", () => {
     expect(compareButton).toHaveTextContent("Compare runs");
     expect(screen.queryByTestId("comparison-panel")).not.toBeInTheDocument();
   });
+
+  it("clears the suite selection when a run resets", async () => {
+    mockApis({ streamBody: event("done", { run_id: 42, state: "completed" }) });
+    render(<EvaluationDashboard />);
+
+    const startButton = await screen.findByTestId("start-evaluation-button");
+    fireEvent.change(screen.getByTestId("suite-selector"), {
+      target: { value: "uncensored-behavior" },
+    });
+    fireEvent.click(startButton);
+    await screen.findByTestId("eval-results");
+
+    fireEvent.click(screen.getByTestId("new-evaluation-button"));
+
+    // After reset the suite is deselected, so the run cannot start again until
+    // the user picks a suite once more.
+    const resetStart = await screen.findByTestId("start-evaluation-button");
+    expect(resetStart).toBeDisabled();
+    expect(screen.queryByTestId("eval-results")).not.toBeInTheDocument();
+  });
+
+  it("lets the user start another run after resetting", async () => {
+    const streamBody =
+      event("progress", progress(0, 2, "U01")) +
+      event("result", resultFrame(0, 2, "U01")) +
+      event("done", { run_id: 42, state: "completed" });
+    mockApis({ streamBody });
+    render(<EvaluationDashboard />);
+
+    const startButton = await screen.findByTestId("start-evaluation-button");
+    fireEvent.change(screen.getByTestId("suite-selector"), {
+      target: { value: "uncensored-behavior" },
+    });
+    fireEvent.click(startButton);
+    await screen.findByTestId("eval-results");
+
+    fireEvent.click(screen.getByTestId("new-evaluation-button"));
+
+    const reselect = await screen.findByTestId("suite-selector");
+    fireEvent.change(reselect, { target: { value: "uncensored-behavior" } });
+    const secondStart = await screen.findByTestId("start-evaluation-button");
+    expect(secondStart).not.toBeDisabled();
+    fireEvent.click(secondStart);
+    await screen.findByTestId("eval-results");
+  });
 });

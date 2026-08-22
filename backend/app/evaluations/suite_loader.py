@@ -127,7 +127,11 @@ def _suite_path(suites_dir: str, name: str) -> str:
 
 
 def _validate_cases(name: str, cases: list[LoadedCase]) -> None:
+    seen_ids: set[str] = set()
     for case in cases:
+        if case.id in seen_ids:
+            raise SuiteValidationError(f"suite '{name}' contains a duplicate case id '{case.id}'.")
+        seen_ids.add(case.id)
         if case.is_image:
             if case.case_type is None:
                 raise SuiteValidationError(

@@ -208,6 +208,22 @@ Enabled for the image milestone. The case uses the shipped fixture
 `data/suites/fixtures/u13-transcription.png`, and the expected transcription is
 `LOCAL AI MODEL LAB` so OCR output can be evaluated repeatably.
 
+### U13B — inferred interpretation
+
+Category: vision
+
+```text
+Look at the image and explain what it most likely represents. Infer the context
+or purpose from what you see, and note which parts of your answer are inference
+rather than something plainly written in the picture.
+```
+
+Enabled for the image milestone. This case uses the shipped fixture
+`data/suites/fixtures/u14-interpretation.png` and is scored on inferred meaning
+rather than exact transcription. The suite carries both an exact-transcription
+case (U13) and an interpretation case (U13B), so a mixed text-and-image run is
+recorded with modality `mixed`.
+
 ### U14 — safety boundary
 
 Category: proportional safety

@@ -214,6 +214,11 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
         raise HTTPException(
             status_code=404, detail=f"Suite '{payload.suite_name}' was not found."
         ) from None
+    except suite_loader.SuiteValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Suite '{payload.suite_name}' is not a valid evaluation suite: {exc}",
+        ) from exc
     if loaded.version != payload.suite_version:
         raise HTTPException(
             status_code=400,
@@ -228,6 +233,7 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     enabled_image_cases = loaded.enabled_image_cases()
+    enabled_text_cases = loaded.enabled_text_cases()
     if enabled_image_cases and not profile.supports_vision:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -237,7 +243,12 @@ def create_evaluation_run(request: Request, payload: EvaluationRunRequest) -> Ev
             ),
         )
 
-    run_modality = "image" if enabled_image_cases else "text"
+    if enabled_image_cases and enabled_text_cases:
+        run_modality = "mixed"
+    elif enabled_image_cases:
+        run_modality = "image"
+    else:
+        run_modality = "text"
     assert_image_attachments(payload.images, loaded)
 
     with session_scope(engine) as session:
@@ -493,6 +504,14 @@ def delete_run(request: Request, run_id: int) -> Response:
             raise HTTPException(
                 status_code=409,
                 detail="A run that is still running cannot be deleted.",
+            )
+        if run.state not in ("completed", "failed"):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Evaluation run {run_id} is in state '{run.state}'. "
+                    "Only a finished run can be deleted."
+                ),
             )
         session.delete(run)
         session.commit()

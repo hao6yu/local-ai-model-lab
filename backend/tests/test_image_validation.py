@@ -66,6 +66,15 @@ def _heif_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def _heif_mif1_bytes() -> bytes:
+    # Build from a decodable HEIC stream, then relabel the ISO-BMFF major
+    # brand to the generic HEIF 'mif1' brand so generic HEIF detection is
+    # exercised with a real, decodable file (not a synthetic header).
+    raw = _heic_bytes()
+    assert raw[4:8] == b"ftyp"
+    return raw[:8] + b"mif1" + raw[12:]
+
+
 _FORMATS: dict[str, bytes] = {
     "JPEG": _jpeg_bytes(),
     "PNG": _png_bytes(),
@@ -123,9 +132,18 @@ def test_validate_accepts_real_formats(source: str) -> None:
 
 def test_heic_round_trips_through_validation_and_transcode() -> None:
     raw = _heic_bytes()
-    validation.validate_image(raw)
+    assert validation.validate_image(raw).media_type == validation.MEDIA_HEIC
     result = validation.prepare_image(raw)
     assert result.media_type == validation.MEDIA_JPEG
+    assert len(result.bytes) > 0
+
+
+def test_generic_mif1_heif_is_detected_and_decoded() -> None:
+    raw = _heif_mif1_bytes()
+    assert validation.validate_image(raw).media_type == validation.MEDIA_HEIF
+    result = validation.prepare_image(raw)
+    assert result.media_type == validation.MEDIA_JPEG
+    assert result.bytes.startswith(b"\xff\xd8\xff")
     assert len(result.bytes) > 0
 
 

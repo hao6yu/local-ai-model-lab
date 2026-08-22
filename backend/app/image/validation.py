@@ -64,9 +64,12 @@ def detect_media_type(raw: bytes) -> str:
         return MEDIA_WEBP
     if raw[4:8] == b"ftyp":
         brand = _fourcc(raw, 8).lower()
-        if brand.startswith(("heic", "heix", "avici", "mlih", "mfi1")) or brand == "m1ai":
+        if brand.startswith(("heic", "heix", "hevc", "hevy", "avici", "mlih")) or brand in (
+            "m1ai",
+            "hev1",
+        ):
             return MEDIA_HEIC
-        if brand.startswith(("heif",)):
+        if brand.startswith(("heif", "mif1", "mif2", "mfc1")):
             return MEDIA_HEIF
     raise MediaValidationError("unsupported image type.")
 

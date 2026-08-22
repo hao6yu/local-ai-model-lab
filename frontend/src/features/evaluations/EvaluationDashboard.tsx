@@ -29,7 +29,7 @@ import { ReasoningEffort } from "../../types/chat";
 import { ImageUploadPanel } from "./ImageUploadPanel";
 import type { ImageUploadEntry } from "./ImageUploadPanel";
 
-const REASONING_OPTIONS: ReasoningEffort[] = ["off", "low", "medium", "high", "xhigh"];
+const REASONING_OPTIONS: ReasoningEffort[] = ["off", "low", "medium", "high", "xhigh", "max"];
 
 const NUMERIC_FIELDS: (keyof EvalScore)[] = [
   "accuracy",
@@ -231,6 +231,7 @@ export function EvaluationDashboard() {
     setPreviews({});
     setCaseList([]);
     setCaseListState("none");
+    setSelectedSuite(null);
   };
 
   const handleLoadRun = (run: EvalRunBrief) => {

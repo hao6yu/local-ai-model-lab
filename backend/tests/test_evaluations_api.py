@@ -343,6 +343,7 @@ def test_delete_run_removes_it_and_cascades(tmp_path: Path) -> None:
                 bytes=b"\xff\xd8\xff",
             )
         )
+        run.state = "completed"
         session.commit()
 
     response = client.delete(f"/api/evaluation-runs/{run_id}")
@@ -744,7 +745,9 @@ def test_image_run_derives_image_modality_even_when_client_sends_text(tmp_path: 
         },
     )
     assert response.status_code == 200
-    assert response.json()["modality"] == "image"
+    # gallery has one enabled image case and one enabled text case, so the
+    # server derives "mixed" rather than trusting the client's "text".
+    assert response.json()["modality"] == "mixed"
 
 
 def test_text_run_stays_text_even_when_client_sends_image(tmp_path: Path) -> None:
@@ -756,6 +759,96 @@ def test_text_run_stays_text_even_when_client_sends_image(tmp_path: Path) -> Non
     )
     assert response.status_code == 200
     assert response.json()["modality"] == "text"
+
+
+def test_image_only_suite_derives_image_modality(tmp_path: Path) -> None:
+    _write_cases(
+        tmp_path,
+        "onlyimage",
+        [
+            {
+                "id": "img1",
+                "prompt": "describe",
+                "input_type": "image",
+                "case_type": "transcribe",
+                "expected_transcription": "sample",
+            },
+        ],
+    )
+    client = _vision_client(tmp_path)
+    response = client.post(
+        "/api/evaluation-runs",
+        json={
+            "suite_name": "onlyimage",
+            "suite_version": "1",
+            "modality": "text",
+            "images": [{"case_id": "img1", "data_url": _png_data_url()}],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["modality"] == "image"
+
+
+def test_suite_with_duplicate_case_ids_is_rejected_on_run_creation(tmp_path: Path) -> None:
+    _write_cases(
+        tmp_path,
+        "dupes",
+        [
+            {"id": "dup", "prompt": "first"},
+            {"id": "dup", "prompt": "second"},
+        ],
+    )
+    client = _client(tmp_path, None)
+    response = client.post(
+        "/api/evaluation-runs",
+        json={"suite_name": "dupes", "suite_version": "1"},
+    )
+    assert response.status_code == 400
+    assert "duplicate" in response.json()["detail"].lower()
+
+
+def test_suite_with_duplicate_image_case_ids_cannot_create_a_run(tmp_path: Path) -> None:
+    _write_cases(
+        tmp_path,
+        "dupimage",
+        [
+            {
+                "id": "img1",
+                "prompt": "a",
+                "input_type": "image",
+                "case_type": "transcribe",
+                "expected_transcription": "a",
+            },
+            {
+                "id": "img1",
+                "prompt": "b",
+                "input_type": "image",
+                "case_type": "interpret",
+            },
+        ],
+    )
+    client = _vision_client(tmp_path)
+    response = client.post(
+        "/api/evaluation-runs",
+        json={"suite_name": "dupimage", "suite_version": "1"},
+    )
+    assert response.status_code == 400
+
+
+def test_invalid_suite_is_rejected_on_run_creation(tmp_path: Path) -> None:
+    _write_cases(
+        tmp_path,
+        "broken",
+        [
+            {"id": "img1", "prompt": "describe", "input_type": "image", "case_type": "image"},
+        ],
+    )
+    client = _client(tmp_path, None)
+    response = client.post(
+        "/api/evaluation-runs",
+        json={"suite_name": "broken", "suite_version": "1"},
+    )
+    assert response.status_code == 400
 
 
 def test_invalid_image_cases_are_excluded_from_suite_listing(tmp_path: Path) -> None:
@@ -890,8 +983,13 @@ def test_shipped_vision_suite_loads_enabled_u13_with_known_transcription() -> No
     assert u13.expected_transcription == "LOCAL AI MODEL LAB"
     assert u13.image is not None
 
+    u13b = next(c for c in loaded.all_cases() if c.id == "U13B")
+    assert u13b.disabled is False
+    assert u13b.is_image is True
+    assert u13b.case_type == "interpret"
+
     enabled_ids = {c.id for c in loaded.enabled_image_cases()}
-    assert enabled_ids == {"U13"}
+    assert enabled_ids == {"U13", "U13B"}
 
 
 def test_shipped_vision_fixture_file_is_a_readable_png(tmp_path: Path) -> None:
@@ -924,22 +1022,31 @@ def test_shipped_vision_run_stores_fixture_image(tmp_path: Path) -> None:
 
     response = client.post(
         "/api/evaluation-runs",
-        json={"suite_name": "uncensored-behavior-v1", "suite_version": "1"},
+        json={"suite_name": "uncensored-behavior-v1", "suite_version": "2"},
     )
     assert response.status_code == 200
 
     run_id = response.json()["id"]
     engine = _db_engine(tmp_path)
     with sessionmaker(bind=engine)() as session:
-        image = session.query(EvaluationImage).filter_by(run_id=run_id).one()
-        assert image.case_id == "U13"
-        assert image.source == "fixture"
-        assert len(image.bytes) > 0
+        images = (
+            session.query(EvaluationImage)
+            .filter_by(run_id=run_id)
+            .order_by(EvaluationImage.case_id)
+            .all()
+        )
+        image_ids = {image.case_id for image in images}
+        assert image_ids == {"U13", "U13B"}
+        for image in images:
+            assert image.source == "fixture"
+            assert len(image.bytes) > 0
 
     with sessionmaker(bind=engine)() as session:
         run = session.get(EvaluationRun, run_id)
         assert run is not None
-        assert run.modality == "image"
+        # The shipped suite mixes text cases with enabled image cases, so the
+        # server records "mixed" rather than "image".
+        assert run.modality == "mixed"
         assert len(run.results) == 0
 
 
