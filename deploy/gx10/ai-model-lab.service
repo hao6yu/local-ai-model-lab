@@ -34,7 +34,10 @@ ProtectControls=true
 ProtectClock=true
 ProtectControlGroups=true
 RestrictNamespaces=true
-RestrictAddressFamilies=afinet afinet6
+# NOTE: leave address families unrestricted. uvicorn/asyncio's event-loop
+# self-pipe and socket handling require more than plain inet/inet6; restricting
+# the families here breaks the loopback bind (verified on the GX10).
+RestrictAddressFamilies=
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 ReadWritePaths=/opt/local-ai-model-lab/data

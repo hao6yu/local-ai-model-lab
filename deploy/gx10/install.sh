@@ -98,6 +98,10 @@ ENV_FILE="${BACKEND_DIR}/.env"
 if [ ! -f "$ENV_FILE" ]; then
   log "creating ${ENV_FILE} from the shipped example — edit it with the real endpoints"
   $SUDO cp "${SRC}/backend/.env.example" "$ENV_FILE"
+  # Pin the SQLite database to this install root (matching the hardening unit's
+  # ReadWritePaths and the service working directory) so the hardened unit can
+  # create and open the DB file on first start.
+  $SUDO sed -i "s|^DATABASE_URL=.*|DATABASE_URL=sqlite:////${INSTALL_ROOT}/data/model-lab.db|" "$ENV_FILE"
 fi
 # The .env holds endpoints and optional keys: only the service user may read it.
 $SUDO chmod 0600 "$ENV_FILE"
