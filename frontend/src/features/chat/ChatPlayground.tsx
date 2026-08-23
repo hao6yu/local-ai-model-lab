@@ -161,6 +161,17 @@ export function ChatPlayground({ models, defaultModelProfile }: ChatPlaygroundPr
     abortRef.current = null;
   }, []);
 
+  const applyModelDefaults = (key: string | null) => {
+    const model = models.find((m) => m.key === key);
+    if (!model) {
+      return;
+    }
+    // Sync the thinking controls to the selected model's own profile defaults so
+    // each model starts with its own reasoning effort / token budget.
+    setReasoningEffort(toEffort(model.default_reasoning_effort));
+    setMaxTokens(model.default_max_tokens ?? null);
+  };
+
   return (
     <section className="playground" aria-label="Streaming chat playground">
       <section className="playground-options">
@@ -169,7 +180,11 @@ export function ChatPlayground({ models, defaultModelProfile }: ChatPlaygroundPr
           <select
             data-testid="model-selector"
             value={modelProfile ?? ""}
-            onChange={(event) => setModelProfile(event.target.value || null)}
+            onChange={(event) => {
+              const key = event.target.value || null;
+              setModelProfile(key);
+              applyModelDefaults(key);
+            }}
             disabled={generating}
           >
             {models.length === 0 ? (

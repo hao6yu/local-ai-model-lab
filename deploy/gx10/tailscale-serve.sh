@@ -25,19 +25,23 @@ DOMAIN="${PORTAL_DOMAIN:-}"
 
 echo "serving the portal on 127.0.0.1:${PORT} (tailnet-only)"
 if [ -n "$DOMAIN" ]; then
-  # Custom domain: provision a certificate first, then serve the local port on it.
-  tailscale cert --bg --hostname "${DOMAIN}" 2>/dev/null || true
-  tailscale serve --bg "${PORT}" --https="${DOMAIN}" --cert="${DOMAIN}"
+  # Custom domain: if it is not a ts.net subdomain, provision a certificate
+  # first. ts.net subdomains get an automatic certificate from Tailscale.
+  case "$DOMAIN" in
+    *.ts.net) ;;
+    *) tailscale cert --bg --hostname "$DOMAIN" 2>/dev/null || true ;;
+  esac
+  tailscale serve --bg "${PORT}" --https="${DOMAIN}"
 else
-  # Default ts.net subdomain: the node's own tailscale hostname (e.g. <node>.ts.net).
-  # Tailscale provisions the certificate automatically; keep Funnel off so only
-  # tailnet devices can reach the portal.
+  # Default: the node's own ts.net name (e.g. <node>.ts.net). Tailscale
+  # provisions the certificate automatically; Funnel stays off so only tailnet
+  # devices can reach the portal.
   tailscale serve --bg "${PORT}"
 fi
 
-echo "domain hint: $DOMAIN (when set) or the node's defaults"
-
 echo "current Serve/Funnel state:"
-tailscale status --json 2>/dev/null \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); print("funnel:", d.get("funnel","(not set)")); print("serve:", d.get("serve","(none)"))' 2>/dev/null \
-  || tailscale status
+if tailscale serve status 2>/dev/null; then
+  :
+else
+  tailscale status
+fi

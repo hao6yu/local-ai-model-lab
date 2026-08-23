@@ -69,6 +69,29 @@ describe("ChatPlayground", () => {
     expect(screen.getByText("ornith-1.5-35b-a3b")).toBeInTheDocument();
   });
 
+  it("syncs reasoning + max tokens to the selected model's own defaults", () => {
+    render(<ChatPlayground models={models} defaultModelProfile="ornith" />);
+    const select = screen.getByTestId("model-selector") as HTMLSelectElement;
+    const maxTokensInput = screen.getByTestId("max-tokens-input") as HTMLInputElement;
+    const reasoningSelector = screen.getByTestId("reasoning-selector") as HTMLSelectElement;
+
+    // ornith defaults = medium / 8192
+    expect(reasoningSelector).toHaveValue("medium");
+    expect(maxTokensInput.value).toBe("8192");
+
+    // switching to qwen applies qwen's own defaults (low / 16384)
+    select.value = "qwen";
+    fireEvent.change(select);
+    expect(reasoningSelector).toHaveValue("low");
+    expect(maxTokensInput.value).toBe("16384");
+
+    // switching back to ornith restores ornith's defaults (medium / 8192)
+    select.value = "ornith";
+    fireEvent.change(select);
+    expect(reasoningSelector).toHaveValue("medium");
+    expect(maxTokensInput.value).toBe("8192");
+  });
+
   it("accumulates streamed content and reports the finish reason", async () => {
     const body = sse(
       chunk("Hel"),

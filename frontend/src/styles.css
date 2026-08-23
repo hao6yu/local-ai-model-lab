@@ -11,9 +11,9 @@ body {
 }
 
 .page {
-  max-width: 42rem;
+  max-width: min(72rem, 100%);
   margin: 0 auto;
-  padding: 2rem 1.25rem;
+  padding: 1.5rem 2rem;
 }
 
 h1 {
@@ -168,8 +168,8 @@ dd {
 }
 
 .playground-messages {
-  min-height: 8rem;
-  max-height: 20rem;
+  min-height: 12rem;
+  max-height: 32rem;
   overflow-y: auto;
   border: 1px solid #2d3443;
   border-radius: 0.5rem;
