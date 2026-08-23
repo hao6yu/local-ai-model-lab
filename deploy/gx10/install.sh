@@ -36,13 +36,23 @@ if [ "$INSTALL_ROOT" = "${SRC}" ]; then
 fi
 
 # --- required tooling --------------------------------------------------------
-for tool in npm python3 rsync; do
+# python3 + rsync are always required. Node/npm are only required when the
+# frontend must be built from source; a pre-built frontend/dist can be shipped
+# instead (set AML_NODE_BUILD=1 to force a rebuild).
+for tool in python3 rsync; do
   command -v "$tool" >/dev/null 2>&1 || { echo "install: missing required tool: $tool" >&2; exit 1; }
 done
-read -r node_major node_minor _ <<<"$(node --version | tr -d 'v')"
-if [ "$node_major" -lt 18 ]; then
-  echo "install: frontend build needs Node >= 18 (found $(node --version))" >&2
-  exit 1
+
+FRONTEND_DIST="${SRC}/frontend/dist"
+if [ "${AML_NODE_BUILD:-0}" = 1 ] || [ ! -f "${FRONTEND_DIST}/index.html" ]; then
+  for tool in node npm; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "install: $tool missing and no pre-built frontend/dist to reuse" >&2; exit 1; }
+  done
+  read -r node_major node_minor _ <<<"$(node --version | tr -d 'v')"
+  if [ "$node_major" -lt 18 ]; then
+    echo "install: frontend build needs Node >= 18 (found $(node --version))" >&2
+    exit 1
+  fi
 fi
 
 # --- provision the code tree -------------------------------------------------
@@ -53,7 +63,7 @@ $SUDO mkdir -p "$INSTALL_ROOT"
 $SUDO rsync -a \
   --exclude='.venv' --exclude='__pycache__' --exclude='.git' \
   --exclude='.env' --exclude='backend/.env' \
-  --exclude='frontend/dist' --exclude='frontend/node_modules' \
+  --exclude='frontend/node_modules' \
   --exclude='data/model-lab.db' --exclude='data/uploads' --exclude='data/exports' \
   --exclude='data/backups' \
   "${SRC}/" "${INSTALL_ROOT}/"
