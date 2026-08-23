@@ -22,19 +22,20 @@ command -v tailscale >/dev/null 2>&1 || { echo "tailscale is not installed on th
 tailscale funnel off 2>/dev/null || true
 
 DOMAIN="${PORTAL_DOMAIN:-}"
-if [ -z "$DOMAIN" ]; then
-  DOMAIN="aml-${RANDOM}${RANDOM}.ts.net"
+
+echo "serving the portal on 127.0.0.1:${PORT} (tailnet-only)"
+if [ -n "$DOMAIN" ]; then
+  # Custom domain: provision a certificate first, then serve the local port on it.
+  tailscale cert --bg --hostname "${DOMAIN}" 2>/dev/null || true
+  tailscale serve --bg "${PORT}" --https="${DOMAIN}" --cert="${DOMAIN}"
+else
+  # Default ts.net subdomain: the node's own tailscale hostname (e.g. <node>.ts.net).
+  # Tailscale provisions the certificate automatically; keep Funnel off so only
+  # tailnet devices can reach the portal.
+  tailscale serve --bg "${PORT}"
 fi
 
-echo "serving https://${DOMAIN} (tailnet-only) -> 127.0.0.1:${PORT}"
-if [[ "$DOMAIN" == "*.ts.net" ]]; then
-  # Public ts.net subdomains get an automatic certificate.
-  tailscale serve --bg set --http="${PORT}" --https="${DOMAIN}"
-else
-  # Custom domain: provision a certificate, then serve on it.
-  tailscale cert --bg --hostname "${DOMAIN}" 2>/dev/null || true
-  tailscale serve --bg set --http="${PORT}" --https="${DOMAIN}" --cert="${DOMAIN}"
-fi
+echo "domain hint: $DOMAIN (when set) or the node's defaults"
 
 echo "current Serve/Funnel state:"
 tailscale status --json 2>/dev/null \
