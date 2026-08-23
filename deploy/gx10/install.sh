@@ -80,11 +80,18 @@ $SUDO python3 -m venv "$VENV"
 "$VENV/bin/pip" install --upgrade pip >/dev/null
 "$VENV/bin/pip" install -r "${BACKEND_DIR}/requirements.txt"
 
-# --- frontend build ----------------------------------------------------------
-log "building frontend"
-cd "${INSTALL_ROOT}/frontend"
-npm ci
-npm run build
+# --- frontend build (or reuse a pre-built dist) ------------------------------
+# A pre-built frontend/dist ships in the source tree and is rsync'd above; only
+# build with npm when AML_NODE_BUILD=1 forces it or the pre-built dist is absent.
+if [ "${AML_NODE_BUILD:-0}" = 1 ] || [ ! -f "${INSTALL_ROOT}/frontend/dist/index.html" ]; then
+  log "building frontend"
+  cd "${INSTALL_ROOT}/frontend"
+  npm ci
+  npm run build
+  cd - >/dev/null
+else
+  log "reusing pre-built frontend/dist (set AML_NODE_BUILD=1 to rebuild with npm)"
+fi
 
 # --- .env (endpoints + optional keys; never committed) -----------------------
 ENV_FILE="${BACKEND_DIR}/.env"
